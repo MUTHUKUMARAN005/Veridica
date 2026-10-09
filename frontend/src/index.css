@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Trebuchet MS', sans-serif;
+  color: #242a29;
+  background: #f6f7f8;
+  font-synthesis: none;
+  letter-spacing: 0;
+  --accent: #136c56;
+  --muted: #69716e;
+  --border: #dce2df;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: wait; opacity: .65; }
+a { color: inherit; text-decoration: none; }
+a:focus-visible, button:focus-visible { outline: 3px solid #377fb6; outline-offset: 5px; }
+h1, h2, h3, p { margin: 0; }
+.topbar { height: 80px; padding: 0 40px; border-bottom: 1px solid var(--border); background: white; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 600; }
+.brand-mark { width: 36px; height: 38px; background: var(--accent); color: white; display: grid; place-items: center; border-radius: 7px; }
+.environment { font-weight: 400; font-size: 12px; color: var(--muted); border-left: 1px solid var(--border); padding-left: 16px; margin-left: 8px; }
+.reference { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+main { width: min(100% - 80px, 1080px); margin: auto; }
+.breadcrumb { color: var(--muted); display: flex; gap: 10px; align-items: center; margin: 30px 0 45px; font-size: 13px; }
+.heading-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 30px; }
+.eyebrow { color: var(--accent); font-size: 11px; font-weight: 600; margin-bottom: 9px; }
+h1 { font-size: 32px; line-height: 1.2; font-weight: 500; }
+.refresh { display: flex; gap: 9px; align-items: center; justify-content: center; height: 40px; min-width: 110px; border: 1px solid var(--border); background: white; border-radius: 5px; font-size: 13px; }
+.refresh:hover { border-color: var(--accent); }
+.status-band { display: flex; align-items: center; gap: 16px; border-block: 1px solid var(--border); padding: 26px 20px; background: linear-gradient(100deg, #edf4ef, #f4f6fa); }
+h2 { font-size: 16px; font-weight: 500; }
+.status-band p { font-size: 12px; color: var(--muted); margin-top: 5px; }
+.phase-tag { margin-left: auto; font-size: 12px; color: var(--muted); }
+.status-dot { display: inline-block; flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: #88918e; }
+.status-dot.connected { background: #268365; }
+.status-dot.unavailable { background: #b34149; }
+.service-section { margin-top: 44px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.section-heading span { color: var(--muted); font-size: 12px; }
+.service-list { border-top: 1px solid var(--border); }
+.service-row { padding: 24px 4px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--border); }
+.service-icon { color: #5b6f89; width: 40px; height: 40px; display: grid; place-items: center; background: #e9edf2; border-radius: 6px; flex-shrink: 0; }
+h3 { font-size: 14px; font-weight: 500; }
+.service-name { min-width: 0; }
+.service-name p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.service-status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; flex-shrink: 0; }
+.service-status.connected { color: var(--accent); }
+.service-status.unavailable { color: #a43b43; }
+.service-status.unknown { color: var(--muted); }
+footer { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; padding: 26px 0; }
+.spinning { animation: spin 1.5s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
+@media (max-width: 600px) {
+  .topbar { padding: 0 20px; height: 70px; }
+  .brand { font-size: 21px; gap: 8px; }
+  .environment { display: none; }
+  main { width: calc(100% - 40px); }
+  .breadcrumb { margin: 25px 0 34px; }
+  h1 { font-size: 25px; }
+  .phase-tag { display: none; }
+  .status-band { padding-inline: 12px; }
+  .service-row { gap: 10px; }
+  .service-status { font-size: 11px; gap: 5px; }
+  footer { flex-wrap: wrap; }
+}

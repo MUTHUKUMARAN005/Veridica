@@ -1,0 +1,12 @@
+{
+  "folders": [{ "path": "." }],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv",
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": ["backend/tests"],
+    "python.analysis.extraPaths": ["./backend"]
+  },
+  "extensions": {
+    "recommendations": ["ms-python.python", "charliermarsh.ruff", "bradlc.vscode-tailwindcss"]
+  }
+}
