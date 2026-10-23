@@ -32,6 +32,32 @@ class User(Base):
     ideas: Mapped[list["Idea"]] = relationship(back_populates="owner")
 
 
+class RoleChangeEvent(Base):
+    __tablename__ = "role_change_events"
+    __table_args__ = (
+        CheckConstraint(
+            "previous_role IN ('owner', 'reviewer', 'admin')",
+            name="ck_role_change_events_previous_role",
+        ),
+        CheckConstraint(
+            "new_role IN ('owner', 'reviewer', 'admin')",
+            name="ck_role_change_events_new_role",
+        ),
+        CheckConstraint("previous_role <> new_role", name="ck_role_change_events_role_changed"),
+        CheckConstraint("length(trim(reason)) > 0", name="ck_role_change_events_reason_nonempty"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    target_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    actor_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    previous_role: Mapped[str] = mapped_column(String(20), nullable=False)
+    new_role: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class Idea(Base):
     __tablename__ = "ideas"
     __table_args__ = (

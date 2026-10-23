@@ -21,5 +21,6 @@ from app.models.entities import (  # noqa: E402,F401
     ReviewCycle,
     ReviewerAssignment,
     ReviewSession,
+    RoleChangeEvent,
     User,
 )

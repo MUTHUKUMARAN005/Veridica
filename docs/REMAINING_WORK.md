@@ -5,21 +5,23 @@
 verified single-idea MVP. Cloud deployment is a later, separately approved phase.
 **Current milestone:** Phases 1-7 are implemented with acceptance limitations
 documented; Phase 8's local persisted-workflow integration test and available
-service checks pass. The Builder cannot execute/build/publish without a reviewed
-isolation boundary. Phase 8's end-to-end test uses deterministic provider doubles;
-live model inference is unverified. Trust has only partial feedback-level evidence.
-V2 remains Draft/source-only. Audited role provisioning, live-provider analysis,
-isolated builds, deployment-grade reports, complete trust evidence, and production
-data protections remain outstanding.
+service checks pass. The audited operator role-provisioning CLI and immutable
+audit migration are implemented and tested. The Builder cannot execute/build/
+publish without a reviewed isolation boundary. Phase 8's end-to-end test uses
+deterministic provider doubles; live model inference is unverified. Trust has
+only partial feedback-level evidence. V2 remains Draft/source-only. Production
+operator governance, live-provider analysis, isolated builds, deployment-grade
+reports, complete trust evidence, and production data protections remain
+outstanding.
 
 ## 1. Read This First
 
 The frontend is ready to explore, but the complete Veridica application is not finished.
 Phase 7 includes owner-approved evidence-linked candidate creation and persisted
 decision reports. Phase 8 verified the local integration flow and restarted the
-stale worker with the current tasks. Remaining acceptance blockers are a verified
-real model provider, audited role provisioning, the reviewed prototype build
-boundary, and production data-protection controls. Generated source must not be
+stale worker with the current tasks. Remaining acceptance blockers are a verified real model provider, production-grade
+operator governance, the reviewed prototype build boundary, and production
+data-protection controls. Generated source must not be
 executed, reviewed as a working prototype, or published before isolation exists.
 Idea APIs, version history, review cycles, assignments, sessions, feedback,
 requirement runs, prototype source records, feedback analysis, evolution proposals,
@@ -132,7 +134,7 @@ does not claim that the preview portal selector is authentication.
 
 | Current preview behavior | Production work still required |
 | --- | --- |
-| Offline preview selector chooses a sample role | A controlled admin bootstrap and audited role-change process |
+| Offline preview selector chooses a sample role | The offline selector is not authentication; API account roles use the audited operator CLI, with production operational governance still required |
 | Preview ideas and reviews live in localStorage | Persistent assets, prototype sessions, and later analysis workflows |
 | Upload selection keeps filenames | Validated uploads, S3 objects, and asset metadata |
 | Preview prototype screens include hand-authored samples | Persisted Requirement Agent and safe Builder source generation are implemented; an isolated build/preview boundary is still missing |
@@ -157,7 +159,7 @@ complete trust evidence and generalized workflow event entities remain pending.
 
 | Order | Blueprint phase | Main deliverable | Depends on |
 | --- | --- | --- | --- |
-| 1 | P1 | Real reviewer/admin authorization, ownership policy, and security acceptance tests — implemented; admin provisioning remains blocked | Verified P0 services and existing owner-auth slice |
+| 1 | P1 | Real reviewer/admin authorization and ownership tests — implemented; audited operator CLI and immutable role audit trail added; production operator governance remains | Verified P0 services and existing owner-auth slice |
 | 2 | P2 | Persistent idea lifecycle, pagination, version history, and local private assets — implemented; production scanning/storage remain blocked | P1 and PostgreSQL |
 | 3 | P3 | Validated, persisted Requirement Agent outputs, owner-scoped API, Celery execution, and connected UI — implemented; real model integration remains unverified | P2 and configured AI provider |
 | 4 | P4 | Safe source generation for one supported category is implemented; isolated execution, build, and reviewable preview remain blocked | P3; sandbox must be separately approved |
@@ -211,8 +213,9 @@ production hardening or verify service-restart persistence.
 **Implementation status (2026-10-23):** Backend ownership checks, reviewer
 assignment-scoped version access, persisted review submission, and restricted admin
 assignment operations are implemented and tested. Authenticated owner/reviewer/admin
-screens consume server-backed results. Admin bootstrap/audited role changes and
-production account lifecycle flows remain blocked.
+screens consume server-backed results. An audited operator CLI now supports
+admin bootstrap and role changes; production account lifecycle and operator
+governance remain outstanding.
 
 ### Identity and Authorization
 
@@ -772,7 +775,8 @@ with evidence after each phase passes its acceptance tests.
 
 Continue with the remaining release blockers rather than restarting Phase 1:
 
-1. Add a reviewed, auditable operator flow for provisioning reviewer/admin roles.
+1. Complete production operator governance, access controls, and audit monitoring
+   around the now-implemented role provisioning CLI.
 2. Configure and verify a real development AI provider; keep live-provider tests
    distinct from deterministic test doubles.
 3. Supply and review a disposable, restricted prototype build/preview boundary.

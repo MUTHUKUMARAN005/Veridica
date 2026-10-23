@@ -52,10 +52,29 @@
   inference or generated-code execution was performed. No free-tier hosted
   services or 24/7 availability are claimed.
 - Blockers before any production release remain: a reviewed isolated prototype
-  execution/build/preview boundary; auditable reviewer/admin provisioning and
+  execution/build/preview boundary; production-grade operator governance and
   operational security controls; a verified configured AI provider; private
   production asset/source storage and data-protection controls; resolution of
   dependency advisories; and production/staging deployment and recovery tests.
+
+## Current: 2026-10-23 audited role provisioning
+
+- Applied Alembic revision `0011_audited_role_provisioning` additively to the
+  existing database; Alembic current/head now both report `0011`. No rows were
+  deleted or database objects reinitialized.
+- Added an operator-only CLI for initial admin bootstrap and subsequent
+  admin-authorized owner/reviewer/admin role changes. Public registration remains
+  owner-only; no role-changing API was added.
+- Each accepted role change is recorded in a new append-only PostgreSQL audit
+  table with actor, target, previous/new roles, reason, and timestamp. The CLI
+  serializes PostgreSQL role changes, rejects repeated bootstrap and unprivileged
+  actors, and prevents demotion of the final admin.
+- Verification: role-provisioning tests passed (`7 passed`) including PostgreSQL
+  update/delete rejection by the append-only trigger; auth/idea regression plus
+  provisioning unit tests passed (`18 passed, 2 skipped`); Ruff passed; CLI help
+  and argument surface were verified. No role was changed in the live database.
+  This operator CLI does not replace deployment governance, DB-access controls,
+  or production audit monitoring.
 
 ## Current: 2026-10-23 Phase 7 evolution and decision reports
 
@@ -271,7 +290,8 @@
   revision `0004` itself applied successfully. Those unrelated differences were not
   rewritten as part of Phase 2.
 - Local private storage does not provide malware scanning/quarantine or production
-  object-storage durability. Admin role provisioning remains an operational blocker.
+  object-storage durability. Production governance for role provisioning remains
+  an operational requirement; the operator CLI is documented in the current status.
 
 ## Current: 2026-10-23 Phase 1 authorization
 
@@ -297,9 +317,9 @@
   and 2 integration tests were skipped in the ordinary suite. Frontend: 15 unit tests,
   lint, typecheck, production build, and all 13 Playwright tests passed.
 - One upstream Starlette/httpx test-client deprecation warning remains.
-- Admin bootstrap/audited role changes are intentionally not implemented; only a
-  trusted database operator can currently provision an admin or reviewer role. A
-  reviewed operational process is still required before broader deployment.
+- At this Phase 1 checkpoint, admin bootstrap/audited role changes were not
+  implemented. The later audited operator CLI is recorded in the current status
+  section above; production operational governance is still required.
 
 ## Current: 2026-10-23 Phase 0 local readiness
 
@@ -339,7 +359,7 @@ screens remain browser-local.
 | PostgreSQL/pgvector, Alembic, Redis, FastAPI readiness | Implemented and verified locally | Current P0 checks above; only users/ideas/idea_versions are persisted |
 | Celery task execution | Implemented and verified locally | `veridica.health.ping` runs; no business workflow tasks exist |
 | Local registration/login and owner-scoped idea APIs | Implemented and verified | Database-backed role checks, ownership isolation tests, and PostgreSQL integration passed |
-| Reviewer/admin RBAC | Implemented and verified, with provisioning blocker | Database roles, ownership checks, exact-version assignments, review submission and narrow admin assignment APIs are covered by tests; safe audited role provisioning remains |
+| Reviewer/admin RBAC | Implemented and verified; operator CLI added | Database roles, ownership checks, exact-version assignments, review submission and narrow admin assignment APIs are covered by tests; production operator governance remains |
 | Frontend API mode | Partially implemented | Authenticated owner ideas, reviewer assignment/review, and admin assignment screens connect to APIs; full authenticated API-mode browser E2E remains uncovered |
 | Ollama provider | Present but not verified | Chat/embed adapter exists; no provider tests or confirmed Ollama runtime/model |
 | Seven specified AI agents | Not implemented | No Requirement, Builder, Feedback Quality, NLP, Prioritization, Evolution, or Decision agent modules/callables |

@@ -78,7 +78,7 @@ backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
 backend/.venv/bin/alembic -c backend/alembic.ini current
 ```
 
-The current schema head is `0010`. Migrations are forward-only for the normal
+The current schema head is `0011`. Migrations are forward-only for the normal
 development workflow; do not drop or reinitialize an existing database.
 
 ## Run Veridica
@@ -111,8 +111,32 @@ Open the frontend at <http://127.0.0.1:5173>. The API is at
 The frontend offers an explicit offline preview as well as authenticated API
 mode. Preview records are browser-local fixtures; they are not PostgreSQL
 business records. New public registrations receive the owner role. Reviewer and
-admin provisioning requires a trusted database operator; there is no public
-self-promotion API.
+admin role changes are available only through the audited backend operator CLI;
+there is no public self-promotion API. After creating an account, an operator
+with database access bootstraps the first admin once:
+
+```bash
+cd backend
+.venv/bin/python -m app.cli.manage_user_role \
+  --email admin@example.com \
+  --role admin \
+  --reason "Initial project operator bootstrap" \
+  --bootstrap-admin
+```
+
+After an admin exists, role changes require that admin's account as actor:
+
+```bash
+.venv/bin/python -m app.cli.manage_user_role \
+  --email reviewer@example.com \
+  --role reviewer \
+  --actor-email admin@example.com \
+  --reason "Approved reviewer account"
+```
+
+The CLI refuses repeated bootstrap, unknown accounts, non-admin actors,
+role-preserving changes, blank reasons, and demotion of the final admin. Each
+accepted change is committed with an append-only PostgreSQL audit event.
 
 ## AI and prototype limitations
 
@@ -163,7 +187,8 @@ On 2026-10-23:
 - Frontend unit tests: **16 passed**.
 - Backend integration suite: **80 passed** in the recorded Phase 8 run.
 - PostgreSQL/pgvector, Redis, migration head `0010`, and a Celery worker ping
-  were verified locally.
+  were verified during the recorded E2E run. The database is now at `0011`
+  after adding the role-provisioning audit table.
 
 These results verify the tested local workflow, not live AI inference,
 generated-code execution, deployment, or production reliability. See the
