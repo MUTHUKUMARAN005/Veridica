@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, ArrowRight, Bookmark, Check, CheckCheck, CheckCircle2, ChevronRight, Code2, FileText, GraduationCap, LayoutDashboard, Leaf, ListChecks, MapPin, Monitor, Play, Search, Send, ShieldCheck, Smartphone, Star, Target } from 'lucide-react'
@@ -7,6 +8,9 @@ import type { Idea, Review } from '../services/preview'
 import { useWorkspace } from '../services/workspace'
 import { Badge, Empty, Modal, PageHeading, Status } from '../components/ui'
 import { IdeaDiscussion } from '../components/IdeaDiscussion'
+import { getAccessToken } from '../services/auth'
+import { getReviewerAssignment, startReviewerSession, submitReviewerReview } from '../services/authorization'
+import type { ApiReview, ReviewerAssignment, ReviewSubmission } from '../services/authorization'
 
 const jobs = [
   { id: 'orbit', company: 'Orbit Labs', title: 'Frontend engineering intern', field: 'Engineering', location: 'Bengaluru · Hybrid', color: 'green', skills: 'React · TypeScript · Accessible UI', description: 'Build and test accessible interfaces alongside a product team. This is a fictional opportunity for prototype testing.' },
@@ -58,6 +62,180 @@ export function PrototypeWorkspace() {
 
 type ReviewForm = { rating: string; usability: string; usefulness: string; feasibility: string; completeness: string; wouldUse: string; strengths: string; concerns: string; improvements: string; context: string }
 export function ReviewWorkspace() {
+  const { id } = useParams()
+  return getAccessToken()
+    ? <ApiReviewWorkspace assignmentId={id ?? ''} />
+    : <PreviewReviewWorkspace />
+}
+
+function ApiReviewWorkspace({ assignmentId }: { assignmentId: string }) {
+  const [assignment, setAssignment] = useState<ReviewerAssignment | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [retryingHandoff, setRetryingHandoff] = useState(false)
+  const [handoffError, setHandoffError] = useState('')
+  const idempotencyKey = useRef<string | null>(null)
+  const [form, setForm] = useState({
+    rating: 0,
+    usability_score: 0,
+    usefulness_score: 0,
+    completeness_score: 0,
+    feasibility_score: 0,
+    would_use: null as boolean | null,
+    feedback_text: '',
+    strengths: '',
+    concerns: '',
+    suggested_improvements: '',
+    usage_context: '',
+  })
+
+  useEffect(() => {
+    let active = true
+    async function loadAssignment() {
+      const result = await getReviewerAssignment(assignmentId)
+      if (!active) return
+      setAssignment(result)
+      if (!result.review_submitted) {
+        const reviewSession = result.review_session ?? await startReviewerSession(assignmentId)
+        if (active) {
+          setAssignment((current) => current
+            ? { ...current, review_session: reviewSession, status: 'in_progress' }
+            : current)
+        }
+      }
+    }
+    loadAssignment()
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'This assignment could not be loaded.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [assignmentId])
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (
+      !assignment?.review_session
+      || !form.rating
+      || !form.usability_score
+      || !form.usefulness_score
+      || !form.completeness_score
+      || !form.feasibility_score
+      || form.would_use === null
+    ) return
+    const wouldUse = form.would_use
+    setSubmitting(true)
+    setError('')
+    idempotencyKey.current ??= crypto.randomUUID()
+    try {
+      const payload: ReviewSubmission = {
+        ...form,
+        session_id: assignment.review_session.id,
+        would_use: wouldUse,
+        feedback_text: form.feedback_text.trim(),
+        strengths: form.strengths.trim(),
+        concerns: form.concerns.trim(),
+        suggested_improvements: form.suggested_improvements.trim(),
+        usage_context: form.usage_context.trim(),
+      }
+      const review = await submitReviewerReview(assignmentId, payload, idempotencyKey.current)
+      setAssignment((current) => current
+        ? { ...current, review_submitted: true, status: 'submitted', feedback: review }
+        : current)
+      idempotencyKey.current = null
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Your review could not be submitted.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+  async function retrySessionStart() {
+    setError('')
+    try {
+      const reviewSession = await startReviewerSession(assignmentId)
+      setAssignment((current) => current
+        ? { ...current, review_session: reviewSession, status: 'in_progress' }
+        : current)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The review session could not be started.')
+    }
+  }
+
+  if (loading) return <div role="status" className="empty">Loading assigned version...</div>
+  if (error && !assignment) return <Empty title="Assignment unavailable"><p role="alert">{error}</p><Link className="button" to="/reviews">Back to your queue</Link></Empty>
+  if (!assignment) return <Empty title="Assignment unavailable"><Link className="button" to="/reviews">Back to your queue</Link></Empty>
+  function updateForm<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
+    if (!submitting) idempotencyKey.current = null
+    setForm((current) => ({ ...current, [field]: value }))
+  }
+  async function retryBackgroundHandoff() {
+    if (!assignment) return
+    const review = assignment.feedback
+    if (
+      !review?.idempotency_key
+      || !assignment.review_session
+      || review.usability_score === null
+      || review.usefulness_score === null
+      || review.completeness_score === null
+      || review.feasibility_score === null
+      || review.would_use === null
+      || !review.strengths
+      || !review.concerns
+      || !review.suggested_improvements
+      || !review.usage_context
+    ) return
+    setRetryingHandoff(true)
+    setHandoffError('')
+    try {
+      const retried = await submitReviewerReview(assignmentId, {
+        session_id: assignment.review_session.id,
+        rating: review.rating,
+        usability_score: review.usability_score,
+        usefulness_score: review.usefulness_score,
+        completeness_score: review.completeness_score,
+        feasibility_score: review.feasibility_score,
+        would_use: review.would_use,
+        feedback_text: review.feedback_text,
+        strengths: review.strengths,
+        concerns: review.concerns,
+        suggested_improvements: review.suggested_improvements,
+        usage_context: review.usage_context,
+      }, review.idempotency_key)
+      setAssignment((current) => current ? { ...current, feedback: retried } : current)
+    } catch (reason) {
+      setHandoffError(reason instanceof Error ? reason.message : 'The background handoff could not be retried.')
+    } finally {
+      setRetryingHandoff(false)
+    }
+  }
+  function reviewReceipt(review: ApiReview) {
+    return <div className="review-success"><CheckCheck size={36} /><h2>Your review is recorded.</h2><p>This authenticated review is stored against assignment {assignment?.id} and version {assignment?.version}. No trust or authenticity result is inferred.</p><Badge tone="green">Review submitted</Badge><p><strong>Overall rating:</strong> {review.rating}/5</p><p>{review.feedback_text}</p><p><strong>Background status:</strong> {review.analysis_status === 'received' ? 'Queue request received; analysis has not run.' : review.analysis_status === 'queued' ? 'Queue request sent; analysis has not run.' : review.analysis_error ? 'Queue handoff failed; the feedback remains safely stored.' : 'Queue handoff is pending; analysis has not run.'}</p>{review.analysis_error && <><p role="alert" className="error">{review.analysis_error}</p><p>{handoffError && <span role="alert" className="error">{handoffError}</span>}</p><button className="button" disabled={retryingHandoff} onClick={() => void retryBackgroundHandoff()}>{retryingHandoff ? 'Retrying handoff...' : 'Retry background handoff'}</button></>}</div>
+  }
+  return <><Link className="back-link" to="/reviews"><ArrowLeft size={15} />Your review queue</Link>
+    <PageHeading eyebrow="AUTHENTICATED REVIEW" title={assignment.idea_title}>Version {assignment.version} · Assigned specifically to your account.</PageHeading>
+    <div className="notice"><ShieldCheck size={20} /><div><strong>Review the submitted idea version</strong><p>No generated prototype is available yet. This form records your structured review of the assigned version only.</p></div></div>
+    <section className="prose-section"><h2>Problem</h2><p>{assignment.problem}</p><h2>Proposed solution</h2><p>{assignment.solution}</p><h2>Intended audience</h2><p>{assignment.audience}</p><h2>Features</h2><ul>{assignment.features.map((feature) => <li key={feature}>{feature}</li>)}</ul><h2>Constraints</h2><p>{assignment.constraints || 'No constraints provided.'}</p></section>
+    {assignment.review_submitted && assignment.feedback
+      ? reviewReceipt(assignment.feedback)
+      : <form className="review-form" onSubmit={submit}><h2>Your review</h2>
+        {error && <p role="alert" className="error">{error}</p>}
+        {!assignment.review_session && <><p role="status">A review session is required before feedback can be submitted.</p><button type="button" className="button" onClick={() => void retrySessionStart()}>Retry session startup</button></>}
+        {(['rating', 'usability_score', 'usefulness_score', 'completeness_score', 'feasibility_score'] as const).map((field) => <label key={field}>{field === 'rating' ? 'Overall rating' : field.replace('_score', '').replaceAll('_', ' ').replace(/^\w/, (letter) => letter.toUpperCase())}<select required disabled={submitting || !assignment.review_session} value={form[field] || ''} onChange={(event) => updateForm(field, Number(event.target.value))}><option value="">Select a rating</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value} / 5</option>)}</select></label>)}
+        <label>Would you use this product?<select required disabled={submitting || !assignment.review_session} value={form.would_use === null ? '' : String(form.would_use)} onChange={(event) => updateForm('would_use', event.target.value === '' ? null : event.target.value === 'true')}><option value="">Choose an answer</option><option value="true">Yes</option><option value="false">No</option></select></label>
+        {([
+          ['feedback_text', 'Evidence and feedback'],
+          ['strengths', 'Strengths'],
+          ['concerns', 'Concerns'],
+          ['suggested_improvements', 'Suggested improvements'],
+          ['usage_context', 'Usage context'],
+        ] as const).map(([field, label]) => <label key={field}>{label}<textarea disabled={submitting || !assignment.review_session} required minLength={10} maxLength={5000} rows={field === 'feedback_text' ? 5 : 3} value={form[field]} onChange={(event) => updateForm(field, event.target.value)} /></label>)}
+        <button className="button primary" disabled={submitting || !assignment.review_session}>{submitting ? 'Submitting...' : error ? 'Retry review submission' : 'Submit review'}<Send size={15} /></button>
+      </form>}
+  </>
+}
+
+function PreviewReviewWorkspace() {
   const { id } = useParams()
   const { state, update, notify } = useWorkspace()
   const idea = state.ideas.find((candidate) => candidate.id === id)

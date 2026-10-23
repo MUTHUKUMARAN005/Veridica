@@ -22,9 +22,16 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     jwt_secret: str = "development-only-change-me"
     access_token_minutes: int = 30
+    ai_provider: Literal["ollama", "gemini"] = "ollama"
+    ai_provider_timeout_seconds: int = 60
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_chat_model: str = "llama3.2"
     ollama_embedding_model: str = "nomic-embed-text"
+    ollama_embedding_dimensions: int = 768
+    gemini_api_key: str | None = None
+    gemini_model: str | None = None
+    idea_asset_storage_dir: Path = ROOT / "backend" / ".private-assets"
+    prototype_source_storage_dir: Path = ROOT / "backend" / ".private-prototypes"
 
     @model_validator(mode="after")
     def validate_runtime_configuration(self) -> "Settings":
@@ -32,6 +39,22 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must use the synchronous postgresql+psycopg driver.")
         if not self.cors_origins:
             raise ValueError("Configure at least one explicit CORS origin.")
+        if self.ai_provider_timeout_seconds < 1 or self.ai_provider_timeout_seconds > 300:
+            raise ValueError("AI provider timeout must be between 1 and 300 seconds.")
+        if self.ollama_embedding_dimensions != 768:
+            raise ValueError(
+                "OLLAMA_EMBEDDING_DIMENSIONS must be 768 for the configured pgvector schema."
+            )
+        if self.app_env == "production" and self.ai_provider == "gemini":
+            raise ValueError(
+                "Gemini Developer API is a development-only provider; production must use "
+                "the approved provider boundary."
+            )
+        if self.ai_provider == "gemini" and self.gemini_model is not None:
+            if not self.gemini_model.strip() or any(
+                character in self.gemini_model for character in "/:?&#"
+            ):
+                raise ValueError("GEMINI_MODEL must be a model identifier.")
         for origin in self.cors_origins:
             parsed = urlsplit(origin)
             if (

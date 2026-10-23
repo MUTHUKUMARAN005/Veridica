@@ -56,6 +56,7 @@ def test_worker_only_accepts_json():
 
 @pytest.mark.integration
 @pytest.mark.skipif(os.getenv("RUN_INTEGRATION") != "1", reason="Requires PostgreSQL and Redis")
-def test_live_dependencies_and_worker(client):
-    assert client.get("/api/v1/health/ready").status_code == 200
-    assert ping.delay().get(timeout=15) == {"status": "ok", "service": "veridica-worker"}
+def test_live_dependencies_and_worker():
+    with TestClient(create_app(Settings())) as live_client:
+        assert live_client.get("/api/v1/health/ready").status_code == 200
+        assert ping.delay().get(timeout=15) == {"status": "ok", "service": "veridica-worker"}

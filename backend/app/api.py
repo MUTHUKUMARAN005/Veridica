@@ -22,7 +22,11 @@ def current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
         )
     claims = decode_access_token(credentials.credentials, request.app.state.settings.jwt_secret)
-    user = session.scalar(select(User).where(User.id == (claims or {}).get("sub")))
+    if claims is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token."
+        )
+    user = session.scalar(select(User).where(User.id == claims["sub"]))
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token."

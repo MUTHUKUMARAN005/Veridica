@@ -8,6 +8,26 @@ import { useWorkspace } from '../services/workspace'
 import { Badge, dateLabel, Empty, PageHeading, SectionHeading } from '../components/ui'
 import { IdeaDiscussion } from '../components/IdeaDiscussion'
 import { PriorityBoard, PrioritySnapshot } from '../components/PriorityBoard'
+import { getAccessToken } from '../services/auth'
+import type {
+  DecisionReport,
+  EvolutionProposal,
+  FeedbackAnalysisRun,
+  PersistedReview,
+} from '../services/ideas'
+import {
+  approveEvolutionProposal,
+  createDecisionReport,
+  createEvolutionProposal,
+  getFeedbackAnalysis,
+  getEvolutionProposal,
+  getIdea,
+  getLatestDecisionReport,
+  getLatestFeedbackAnalysis,
+  listIdeas,
+  listPersistedFeedback,
+  startFeedbackAnalysis,
+} from '../services/ideas'
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, Legend, LinearScale, Tooltip)
 ChartJS.defaults.font.family = 'Aptos, Segoe UI, sans-serif'
@@ -25,7 +45,217 @@ function useEvidence() {
 
 function EvidenceNote() { return <p className="evidence-note"><Info size={13} />Values are calculated from sample and browser-local feedback, not a production validation result.</p> }
 
+type AnalysisSection = 'feedback' | 'analytics' | 'trust' | 'consensus'
+
+function AuthenticatedFeedbackAnalysis({ section }: { section: AnalysisSection }) {
+  const [ideas, setIdeas] = useState<{ id: string; title: string; version: number }[]>([])
+  const [selectedIdeaId, setSelectedIdeaId] = useState('')
+  const [selectedVersion, setSelectedVersion] = useState(0)
+  const [versions, setVersions] = useState<{ version: number; title: string }[]>([])
+  const [reviews, setReviews] = useState<PersistedReview[]>([])
+  const [run, setRun] = useState<FeedbackAnalysisRun | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    listIdeas()
+      .then(async (page) => {
+        if (!active) return
+        setIdeas(page.items.map((idea) => ({ id: idea.id, title: idea.title, version: idea.version })))
+        if (!page.items.length) {
+          setLoading(false)
+          return
+        }
+        const selected = page.items[0]
+        setSelectedIdeaId(selected.id)
+        const detail = await getIdea(selected.id)
+        if (!active) return
+        const ideaVersions = detail.versions.map((version) => ({ version: version.version, title: version.title }))
+        setVersions(ideaVersions)
+        setSelectedVersion(detail.version)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Ideas could not be loaded.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedIdeaId) return
+    let active = true
+    setLoading(true)
+    setRun(null)
+    setReviews([])
+    getIdea(selectedIdeaId)
+      .then((detail) => {
+        if (!active) return
+        setVersions(detail.versions.map((version) => ({ version: version.version, title: version.title })))
+        setSelectedVersion((current) => current || detail.version)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Idea versions could not be loaded.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [selectedIdeaId])
+
+  useEffect(() => {
+    if (!selectedIdeaId || !selectedVersion) return
+    let active = true
+    setLoading(true)
+    Promise.all([
+      listPersistedFeedback(selectedIdeaId, selectedVersion),
+      getLatestFeedbackAnalysis(selectedIdeaId, selectedVersion),
+    ])
+      .then(([persisted, latest]) => {
+        if (!active) return
+        setReviews(persisted)
+        setRun(latest)
+        setError('')
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Persisted feedback could not be loaded.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [selectedIdeaId, selectedVersion])
+
+  useEffect(() => {
+    if (!run || !['queued', 'running'].includes(run.status)) return
+    let active = true
+    const timer = window.setInterval(() => {
+      getFeedbackAnalysis(run.idea_id, run.source_version, run.id)
+        .then((latest) => { if (active) setRun(latest) })
+        .catch((reason: unknown) => {
+          if (active) setError(reason instanceof Error ? reason.message : 'Analysis status could not be refreshed.')
+        })
+    }, 1500)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [run])
+
+  const selectedIdea = ideas.find((idea) => idea.id === selectedIdeaId)
+  const result = run?.status === 'completed' ? run.result : null
+
+  const submitAnalysis = async () => {
+    if (!selectedIdeaId || !selectedVersion) return
+    setSubmitting(true)
+    setError('')
+    try {
+      setRun(await startFeedbackAnalysis(selectedIdeaId, selectedVersion))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Feedback analysis could not be started.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const selector = <div className="api-analysis-selectors">
+    <select aria-label="Select idea" value={selectedIdeaId} onChange={(event) => {
+      setSelectedIdeaId(event.target.value)
+      setSelectedVersion(0)
+    }}>
+      {ideas.map((idea) => <option value={idea.id} key={idea.id}>{idea.title}</option>)}
+    </select>
+    <select aria-label="Select version" value={selectedVersion || ''} onChange={(event) => setSelectedVersion(Number(event.target.value))}>
+      {versions.map((version) => <option value={version.version} key={version.version}>V{version.version} · {version.title}</option>)}
+    </select>
+  </div>
+
+  const pageCopy: Record<AnalysisSection, { eyebrow: string; title: string; description: string }> = {
+    feedback: { eyebrow: 'PERSISTED REVIEW EVIDENCE', title: 'Feedback from this version.', description: 'Only submitted PostgreSQL reviews are shown in authenticated mode.' },
+    analytics: { eyebrow: 'EVIDENCE AT A GLANCE', title: 'What persisted feedback supports.', description: 'Analysis is version-scoped and traces each result to submitted feedback.' },
+    trust: { eyebrow: 'TRUST & QUALITY', title: 'Signals, not verdicts.', description: 'Model judgments are uncertain indicators; no score proves a person or comment is fake.' },
+    consensus: { eyebrow: 'COLLECTIVE PERSPECTIVE', title: 'Agreement with evidence attached.', description: 'Raw responses and deterministic trust-weighted consensus remain separate.' },
+  }
+  const copy = pageCopy[section]
+
+  return <>
+    <PageHeading eyebrow={copy.eyebrow} title={copy.title} actions={selector}>{copy.description}</PageHeading>
+    {error && <p role="alert" className="error">{error}</p>}
+    {loading && <p role="status" className="empty">Loading persisted feedback evidence…</p>}
+    {!loading && !ideas.length && <Empty title="No authenticated ideas"><p>Create a persisted idea before analyzing its reviews.</p></Empty>}
+    {!loading && selectedIdea && <section className="api-analysis-panel">
+      <div className="api-analysis-toolbar">
+        <div><Badge>Idea {selectedIdea.id.slice(0, 8)} · V{selectedVersion}</Badge><p>{reviews.length} persisted review{reviews.length === 1 ? '' : 's'} in this version snapshot.</p></div>
+        <button className="button primary" disabled={submitting || reviews.length === 0} onClick={submitAnalysis}>
+          {submitting ? 'Starting…' : run?.status === 'failed' ? 'Retry analysis' : run?.status === 'completed' ? 'Refresh analysis' : 'Analyze persisted feedback'}
+        </button>
+      </div>
+      {reviews.length === 0 && <p className="muted">No submitted feedback exists for this exact version. No analysis or consensus is available.</p>}
+      {run && <div className="api-analysis-status" role="status">
+        <Badge tone={run.status === 'completed' ? 'green' : run.status === 'failed' ? 'coral' : 'neutral'}>{run.status}</Badge>
+        <span>Workflow {run.workflow_run_id} · {run.provider}/{run.model_version} · embedding {run.embedding_model_version} · prompt {run.prompt_version}</span>
+        {run.error_message && <p role="alert" className="error">{run.error_message}</p>}
+      </div>}
+
+      {section === 'feedback' && <div className="feedback-detail-list">{reviews.map((review) => {
+        const quality = result?.quality.find((item) => item.feedback_id === review.id)
+        return <article className="feedback-detail" key={review.id}>
+          <header><div><strong>Persisted review</strong><small>V{selectedVersion} · {new Date(review.created_at).toLocaleString()}</small></div><Badge>Evidence {review.id.slice(0, 8)}</Badge><span className="review-score">{review.rating}<small>/5</small></span></header>
+          <p>{review.feedback_text}</p>
+          <div className="feedback-columns"><section><span className="eyebrow">STRENGTHS</span><p>{review.strengths}</p></section><section><span className="eyebrow">CONCERNS</span><p>{review.concerns}</p></section></div>
+          <div className="improvement"><Sparkles size={16} /><div><strong>Suggested improvement</strong><p>{review.suggested_improvements}</p></div></div>
+          {quality && <p className="muted">Quality indicators — relevance {quality.relevance.toFixed(2)}, constructiveness {quality.constructiveness.toFixed(2)}, originality {quality.originality.toFixed(2)}, spam risk {quality.spam_risk.toFixed(2)}. {quality.uncertainty}</p>}
+          <small className="evidence-id">Source feedback ID: {review.id}</small>
+        </article>
+      })}</div>}
+
+      {section === 'analytics' && result && <div className="api-analysis-results">
+        <div className="metrics-grid analytics-metrics">
+          <Metric label="Evidence analyzed" value={result.consensus.sample_size} detail={`Source IDs: ${result.source_feedback_ids.length}`} />
+          <Metric label="Raw support" value={percent(result.consensus.raw_support)} detail={`${result.consensus.raw_support_count} positive responses`} />
+          <Metric label="Trust-weighted support" value={percent(result.consensus.weighted_support)} detail={`Weight denominator ${result.consensus.normalized_weight_denominator.toFixed(4)}`} />
+          <Metric label="Evidence coverage" value={percent(result.consensus.evidence_coverage)} detail="Required source feedback represented" />
+        </div>
+        <SectionHeading title="Evidence-linked themes" />
+        {result.themes.length ? <ul className="analysis-evidence-list">{result.themes.map((theme, index) => <li key={`${theme.label}-${index}`}><Badge>{theme.kind.replace('_', ' ')}</Badge><strong>{theme.label}</strong><p>{theme.summary}</p><small>Source feedback: {theme.feedback_ids.join(', ')}</small></li>)}</ul> : <Empty title="No themes extracted"><p>The validated model output found no recurring theme in this evidence snapshot.</p></Empty>}
+        <SectionHeading title="Prioritized improvement signals" />
+        {result.priorities.length ? <ol className="analysis-evidence-list">{result.priorities.map((priority) => <li key={`${priority.rank}-${priority.title}`}><Badge>{priority.priority}</Badge><strong>{priority.title}</strong><p>{priority.rationale}</p><small>{priority.evidence_count} source reviews · normalized weighted support {priority.weighted_support.toFixed(4)} · impact {priority.impact}: {priority.impact_rationale} · feasibility {priority.feasibility}: {priority.feasibility_rationale} · missing: {priority.missing_inputs.join(', ') || 'none reported'}</small><small>Evidence IDs: {priority.feedback_ids.join(', ')}{priority.assumptions.length ? ` · Assumptions: ${priority.assumptions.join('; ')}` : ''}</small></li>)}</ol> : <p className="muted">No explicit feature requests were found to prioritize.</p>}
+        {!!result.contradictions.length && <><SectionHeading title="Contradictions to review" /><ul className="analysis-evidence-list">{result.contradictions.map((item, index) => <li key={index}><p>{item.summary}</p><small>Evidence: {item.feedback_ids.join(', ')}</small></li>)}</ul></>}
+        {!!result.duplicate_pairs.length && <><SectionHeading title="Likely similar feedback" /><ul className="analysis-evidence-list">{result.duplicate_pairs.map((item) => <li key={item.feedback_ids.join(':')}><strong>Cosine similarity {item.cosine_similarity.toFixed(3)}</strong><p>{item.method === 'pgvector_cosine' ? 'Calculated by pgvector.' : 'Deterministic test calculation.'}</p><small>{item.feedback_ids.join(' ↔ ')}</small></li>)}</ul></>}
+      </div>}
+
+      {section === 'trust' && <div className="api-analysis-results">
+        <div className="formula-banner"><LockKeyhole size={23} /><div><h3>Deterministic, evidence-bounded trust</h3><p>Formula {result?.trust[0]?.formula_version ?? 'trust-baseline-partial-v1'}. Missing factors are excluded and observed weights are renormalized; these are feedback-level estimates, not reviewer reputation scores.</p></div></div>
+        {result ? <div className="table-scroll"><table><thead><tr><th>Feedback ID</th><th>Partial trust</th><th>Evidence coverage</th><th>Quality</th><th>Unsupported factors</th></tr></thead><tbody>{result.trust.map((trust) => {
+          const quality = result.quality.find((item) => item.feedback_id === trust.feedback_id)
+          return <tr key={trust.feedback_id}><td>{trust.feedback_id}</td><td>{trust.score?.toFixed(3) ?? 'Not available'}</td><td>{percent(trust.evidence_coverage)}</td><td>{quality ? ((quality.relevance + quality.constructiveness + quality.originality + quality.internal_consistency + 1 - quality.spam_risk) / 5).toFixed(3) : 'Not available'}</td><td>{trust.missing_factors.join(', ')}</td></tr>
+        })}</tbody></table></div> : <AnalysisPending run={run} />}
+        {result?.quality.map((quality) => <p className="muted" key={quality.feedback_id}>Feedback {quality.feedback_id}: authenticity indicator {quality.authenticity_indicator.toFixed(2)} · self-reported confidence {quality.self_reported_confidence.toFixed(2)} · {quality.uncertainty} This is not proof of authenticity or fraud.</p>)}
+      </div>}
+
+      {section === 'consensus' && <div className="api-analysis-results">
+        {result ? <><div className="consensus-columns">
+          <section className="consensus-result"><Badge tone="green">Raw support</Badge><strong>{percent(result.consensus.raw_support)}</strong><p>{result.consensus.raw_support_count} of {result.consensus.sample_size} persisted reviews would use this version.</p><small>Unweighted; evidence IDs are retained.</small></section>
+          <section className="consensus-result"><Badge>Trust-weighted support</Badge><strong>{percent(result.consensus.weighted_support)}</strong><p>Trust × authenticity indicator × relevance, divided by total raw feedback weight {result.consensus.normalized_weight_denominator.toFixed(5)}.</p><small>Confidence indicator {percent(result.consensus.confidence_indicator)} · uncalibrated.</small></section>
+        </div><p className="notice">{result.consensus.uncertainty} Sample size: {result.consensus.sample_size}; evidence coverage: {percent(result.consensus.evidence_coverage)}. Evidence IDs: {result.consensus.evidence_ids.join(', ')}</p></> : <AnalysisPending run={run} />}
+      </div>}
+    </section>}
+  </>
+}
+
+function Metric({ label, value, detail }: { label: string; value: string | number; detail: string }) {
+  return <div className="metric"><div className="metric-top">{label}</div><strong>{value}</strong><p>{detail}</p></div>
+}
+
+function AnalysisPending({ run }: { run: FeedbackAnalysisRun | null }) {
+  return <Empty title={run?.status === 'failed' ? 'Analysis failed' : 'Analysis not available'}>
+    <p>{run?.error_message ?? 'Start analysis to process the persisted feedback snapshot. No empty report is treated as success.'}</p>
+  </Empty>
+}
+
+function percent(value: number | null | undefined) {
+  return value === null || value === undefined ? 'Not available' : `${(value * 100).toFixed(1)}%`
+}
+
 export function Feedback() {
+  return getAccessToken() ? <AuthenticatedFeedbackAnalysis section="feedback" /> : <PreviewFeedback />
+}
+
+function PreviewFeedback() {
   const { idea, reviews, selector } = useEvidence()
   const location = useLocation()
   useEffect(() => {
@@ -43,6 +273,10 @@ export function Feedback() {
 function MonitorLabel() { return <MessageSquare size={13} /> }
 
 export function Analytics() {
+  return getAccessToken() ? <AuthenticatedFeedbackAnalysis section="analytics" /> : <PreviewAnalytics />
+}
+
+function PreviewAnalytics() {
   const { reviews, selector, summary } = useEvidence()
   const averages = ['usability', 'usefulness', 'feasibility', 'completeness'] as const
   const support = Math.round((summary.support ?? 0) * 100)
@@ -53,6 +287,10 @@ export function Analytics() {
 }
 
 export function Trust() {
+  return getAccessToken() ? <AuthenticatedFeedbackAnalysis section="trust" /> : <PreviewTrust />
+}
+
+function PreviewTrust() {
   const { selector, reviews } = useEvidence()
   const [tab, setTab] = useState('Trust factors')
   const factors = [['Review quality', '30%', 'Evidence-backed quality signals'], ['Historical accuracy', '20%', 'Outcomes across previous review cycles'], ['Peer alignment', '15%', 'Independent agreement, with diversity safeguards'], ['Consistency', '15%', 'Stable evidence across review history'], ['Verified expertise', '10%', 'Verified, domain-relevant experience'], ['Community validation', '10%', 'Auditable community assessments']]
@@ -62,12 +300,163 @@ export function Trust() {
 }
 
 export function Consensus() {
+  return getAccessToken() ? <AuthenticatedFeedbackAnalysis section="consensus" /> : <PreviewConsensus />
+}
+
+function PreviewConsensus() {
   const { idea, reviews, summary, selector } = useEvidence()
   const yes = reviews.filter((review) => review.wouldUse).length
   return <><PageHeading eyebrow="COLLECTIVE PERSPECTIVE" title="Agreement, with the evidence attached." actions={selector}>Keep raw feedback and trust-weighted conclusions separate.</PageHeading><EvidenceNote /><div className="consensus-columns"><section className="consensus-result"><Badge tone="green">Raw support</Badge><strong>{summary.support === null ? 'Not available' : `${Math.round(summary.support * 100)}%`}</strong><p>{yes} of {reviews.length} reviewers would use this prototype.</p><div className="support-track"><span style={{ width: `${(summary.support ?? 0) * 100}%` }} /></div><small>Unweighted · sample + local responses</small></section><section className="consensus-result pending"><Badge>Trust-weighted support</Badge><ShieldCheck size={29} /><h3>Awaiting trust analysis</h3><p>Reviewer trust × authenticity × relevance, normalized before aggregation.</p><small>Confidence is unavailable until evidence is analyzed.</small></section></div><SectionHeading title="Supporting evidence" />{reviews.length ? <div className="table-scroll"><table><thead><tr><th>Reviewer</th><th>Would use</th><th>Rating</th><th>Evidence</th><th>Source</th></tr></thead><tbody>{reviews.map((review) => <tr key={review.id}><td>{review.reviewer}</td><td><Badge tone={review.wouldUse ? 'green' : 'coral'}>{review.wouldUse ? 'Yes' : 'Not yet'}</Badge></td><td>{review.rating}/5</td><td><Link className="text-link" to={`/feedback?idea=${idea.id}#${review.id}`}>Read review<ArrowUpRight size={13} /></Link></td><td>{review.sample ? 'Sample' : 'Local'}</td></tr>)}</tbody></table></div> : <Empty title="No evidence available" />}</>
 }
 
 export function Evolution() {
+  return getAccessToken() ? <AuthenticatedEvolution /> : <PreviewEvolution />
+}
+
+function AuthenticatedEvolution() {
+  const [params, setParams] = useSearchParams()
+  const [ideas, setIdeas] = useState<{ id: string; title: string; version: number }[]>([])
+  const [proposal, setProposal] = useState<EvolutionProposal | null>(null)
+  const [selectedRanks, setSelectedRanks] = useState<number[]>([])
+  const [loading, setLoading] = useState(true)
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState('')
+  const selectedIdeaId = params.get('idea') ?? ''
+  const idea = ideas.find((item) => item.id === selectedIdeaId)
+
+  useEffect(() => {
+    let active = true
+    listIdeas()
+      .then((page) => {
+        if (!active) return
+        setIdeas(page.items.map(({ id, title, version }) => ({ id, title, version })))
+        if (!selectedIdeaId && page.items[0]) setParams({ idea: page.items[0].id })
+      })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Ideas could not be loaded.'))
+      .finally(() => active && setLoading(false))
+    return () => { active = false }
+  }, [selectedIdeaId, setParams])
+
+  useEffect(() => {
+    if (!idea) {
+      setProposal(null)
+      return
+    }
+    let active = true
+    setLoading(true)
+    getEvolutionProposal(idea.id, idea.version)
+      .then((result) => {
+        if (!active) return
+        setProposal(result)
+        setSelectedRanks([])
+      })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'The proposal could not be loaded.'))
+      .finally(() => active && setLoading(false))
+    return () => { active = false }
+  }, [idea])
+
+  async function createProposal() {
+    if (!idea) return
+    setWorking(true)
+    setError('')
+    try {
+      setProposal(await createEvolutionProposal(idea.id, idea.version))
+      setSelectedRanks([])
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'A proposal could not be created.')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function approveProposal() {
+    if (!idea || !proposal || !selectedRanks.length) return
+    setWorking(true)
+    setError('')
+    try {
+      const approved = await approveEvolutionProposal(idea.id, idea.version, proposal.id, selectedRanks)
+      setProposal(approved)
+      setIdeas((current) => current.map((entry) => entry.id === idea.id ? { ...entry, version: entry.version + 1 } : entry))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The selected changes could not be approved.')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const selector = <select
+    className="idea-selector"
+    aria-label="Select idea"
+    value={selectedIdeaId}
+    onChange={(event) => setParams({ idea: event.target.value })}
+  >
+    {ideas.map((item) => <option key={item.id} value={item.id}>{item.title} · V{item.version}</option>)}
+  </select>
+
+  return <>
+    <PageHeading eyebrow="IDEA EVOLUTION" title="A next version with a reason behind it." actions={selector}>
+      Suggestions are grounded in persisted evidence. Only owner approval creates a new immutable version.
+    </PageHeading>
+    {error && <div className="notice" role="alert">{error}</div>}
+    {loading ? <p role="status">Loading persisted evolution data…</p> : !idea
+      ? <Empty title="No authenticated ideas available." />
+      : !proposal
+        ? <section className="notice">
+          <GitBranch size={20} />
+          <div>
+            <strong>Evidence-based proposal</strong>
+            <p>Creation requires validated requirements and a completed analysis of submitted feedback for V{idea.version}.</p>
+            <button className="button primary" disabled={working} onClick={() => void createProposal()}>
+              {working ? 'Preparing proposal…' : 'Generate evidence-linked proposal'}
+            </button>
+          </div>
+        </section>
+        : <>
+          <div className="notice">
+            <Info size={18} />
+            <div>
+              <strong>{proposal.status === 'approved' ? 'Owner-approved candidate' : 'Generated suggestions — not approved'}</strong>
+              <p>Source V{proposal.source_version} · {proposal.source_feedback_ids.length} submitted reviews · analysis {proposal.feedback_analysis_run_id}. A source-only Builder result is not a built or working prototype.</p>
+            </div>
+          </div>
+          <SectionHeading title="Proposed changes and evidence" />
+          <div className="priority-list">
+            {proposal.suggestions.map((suggestion) => <label key={suggestion.rank}>
+              <input
+                type="checkbox"
+                aria-label={`Approve ${suggestion.title}`}
+                disabled={proposal.status !== 'proposed' || !suggestion.builder_supported}
+                checked={selectedRanks.includes(suggestion.rank)}
+                onChange={() => setSelectedRanks((current) => current.includes(suggestion.rank)
+                  ? current.filter((rank) => rank !== suggestion.rank)
+                  : [...current, suggestion.rank])}
+              />
+              <div>
+                <strong>{suggestion.priority}: {suggestion.title}</strong>
+                <p>{suggestion.rationale}</p>
+                <span>Qualitative impact: {suggestion.expected_benefit.qualitative_impact}; weighted support: {suggestion.expected_benefit.weighted_support.toFixed(3)} (analysis value, not outcome measurement).</span>
+                <p>Source feedback: {suggestion.source_feedback_ids.join(', ')}</p>
+                <p>Risks: {suggestion.risks.length ? suggestion.risks.map((risk) => risk.concern).join(' · ') : 'No separate reviewer concern cited.'}</p>
+                <p>{suggestion.builder_supported ? 'Supported by the current source-generation template.' : 'Outside current Builder scope; cannot approve for generation.'}</p>
+                {suggestion.missing_inputs.length > 0 && <p>Missing inputs: {suggestion.missing_inputs.join(', ')}</p>}
+              </div>
+            </label>)}
+          </div>
+          {proposal.status === 'proposed'
+            ? <div className="form-actions section-space">
+              <button className="button primary" disabled={working || !selectedRanks.length} onClick={() => void approveProposal()}>
+                {working ? 'Creating immutable candidate…' : `Approve ${selectedRanks.length} selected change(s)`}
+              </button>
+            </div>
+            : <div className="notice">
+              <Badge tone="blue">Candidate V{String(proposal.validation_results.target_version)} · Draft</Badge>
+              <p>Builder source: {String(proposal.validation_results.prototype_source_status)} · build: {String(proposal.validation_results.prototype_build_status)} · publication: {String(proposal.validation_results.prototype_publish_status)}. No isolated build or working prototype is available.</p>
+            </div>}
+        </>}
+  </>
+}
+
+function PreviewEvolution() {
   const { idea, selector, state, update } = useEvidence()
   const reviews = rankPriorities(state, idea.id).filter((item) => item.score !== null).map((item) => ({ id: item.id, version: item.version, improvements: item.text, reviewer: item.author, concerns: `${item.priority} · ${item.effort} effort · ${item.rationale}`, sample: state.reviews.find((review) => review.id === item.id)?.sample ?? false }))
   const [selected, setSelected] = useState<string[]>([])
@@ -80,6 +469,90 @@ export function Evolution() {
 }
 
 export function Reports() {
+  return getAccessToken() ? <AuthenticatedReports /> : <PreviewReports />
+}
+
+function AuthenticatedReports() {
+  const [params, setParams] = useSearchParams()
+  const [ideas, setIdeas] = useState<{ id: string; title: string; version: number }[]>([])
+  const [report, setReport] = useState<DecisionReport | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState('')
+  const ideaId = params.get('idea') ?? ''
+  const idea = ideas.find((item) => item.id === ideaId)
+  useEffect(() => {
+    let active = true
+    listIdeas()
+      .then((page) => {
+        if (!active) return
+        setIdeas(page.items.map(({ id, title, version }) => ({ id, title, version })))
+        if (!ideaId && page.items[0]) setParams({ idea: page.items[0].id })
+      })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Ideas could not be loaded.'))
+      .finally(() => active && setLoading(false))
+    return () => { active = false }
+  }, [ideaId, setParams])
+  useEffect(() => {
+    if (!idea) {
+      setReport(null)
+      return
+    }
+    let active = true
+    setLoading(true)
+    getLatestDecisionReport(idea.id, idea.version)
+      .then((result) => active && setReport(result))
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'The report could not be loaded.'))
+      .finally(() => active && setLoading(false))
+    return () => { active = false }
+  }, [idea])
+  async function generateReport() {
+    if (!idea) return
+    setWorking(true)
+    setError('')
+    try {
+      setReport(await createDecisionReport(idea.id, idea.version))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'A report snapshot could not be created.')
+    } finally {
+      setWorking(false)
+    }
+  }
+  const selector = <select className="idea-selector" aria-label="Select idea" value={ideaId} onChange={(event) => setParams({ idea: event.target.value })}>
+    {ideas.map((item) => <option key={item.id} value={item.id}>{item.title} · V{item.version}</option>)}
+  </select>
+  const reportData = report?.report
+  return <>
+    <PageHeading eyebrow="DECISION INTELLIGENCE" title="A traceable record of what the evidence supports." actions={selector}>
+      Persisted report snapshots identify their exact source version, analysis runs, and reviewer evidence.
+    </PageHeading>
+    {error && <div className="notice" role="alert">{error}</div>}
+    {loading ? <p role="status">Loading report snapshot…</p> : !idea
+      ? <Empty title="No authenticated ideas available." />
+      : <>
+        <div className="report-toolbar">
+          <Badge tone="blue">{report ? `Persisted snapshot · ${report.report_version}` : 'No report snapshot yet'}</Badge>
+          <button className="button primary" disabled={working} onClick={() => void generateReport()}>
+            {working ? 'Saving snapshot…' : 'Create report snapshot'}
+          </button>
+        </div>
+        {report && reportData
+          ? <section className="report-card">
+            <div className="report-summary">
+              <div><small>Source version</small><strong>V{report.source_version}</strong></div>
+              <div><small>Persisted feedback</small><strong>{report.source_feedback_ids.length} records</strong></div>
+              <div><small>Requirements analysis</small><strong>{report.requirement_analysis_run_id ?? 'Unavailable'}</strong></div>
+              <div><small>Feedback analysis</small><strong>{report.feedback_analysis_run_id ?? 'Unavailable'}</strong></div>
+            </div>
+            <p>Report ID {report.id} · created {dateLabel(report.created_at)}. Facts, calculations, and model interpretations are labeled in the snapshot; unavailable evidence remains explicit.</p>
+            <pre className="report-json">{JSON.stringify(reportData, null, 2)}</pre>
+          </section>
+          : <Empty title="No persisted report snapshot for this version." />}
+      </>}
+  </>
+}
+
+function PreviewReports() {
   const { idea, reviews, summary, selector, state } = useEvidence()
   const proposal = state.evolutions.find((entry) => entry.ideaId === idea.id)
   function exportReport() {

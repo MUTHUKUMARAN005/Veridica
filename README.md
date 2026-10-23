@@ -12,7 +12,9 @@ extended later if a deployment needs managed services.
 The supported free stack is local PostgreSQL with pgvector, Redis, Celery, FastAPI,
 and Ollama for chat and embeddings. The frontend remains React/TypeScript/Vite.
 PostgreSQL is the durable source of truth; Redis is only transport/cache; Ollama is
-optional until an AI workflow is explicitly started.
+the default provider and is called only by an explicitly queued backend workflow.
+The Gemini Developer API adapter is an opt-in development-only option; it does not
+replace the blueprint's production provider.
 
 **Recommended approach:** run the frontend and Python API locally, run PostgreSQL,
 Redis, Celery, and Ollama as separate local services, and add each vertical slice
@@ -451,9 +453,27 @@ Trust + Consensus -> V2 -> Decision Intelligence**.
 
 ## Current Scope and Completion Status
 
-The interactive frontend preview runs without Docker, PostgreSQL, Redis, or an AI
-runtime. A local Python API vertical slice is now implemented and tested, but the
-full product and MVP acceptance loop are not complete.
+**Status checked: 2026-10-23.** Local development now runs without Docker or AWS.
+PostgreSQL with pgvector, Redis, Alembic migrations, FastAPI, a Celery worker, and
+the Vite frontend have been started and checked together. Phases 1 and 2 provide
+backend authorization and persistent, versioned idea management; Phase 3 adds
+published-version review cycles, reviewer sessions, durable structured feedback,
+and retry-safe queue handoff. Phase 4 adds the persisted Requirement Agent workflow,
+typed output validation, owner-scoped status/result APIs, and frontend integration.
+Phase 5 adds safe, source-only Builder generation for education placement preparation.
+An isolated build/preview boundary is not available, so generated source is not
+executed, built, or published. Phase 6 adds version-specific persisted feedback
+quality/NLP analysis, deterministic partial trust, normalized consensus, and
+evidence-linked improvement ranking using Celery and LangGraph. Phase 7 adds
+owner-approved, evidence-linked immutable version candidates and persisted
+decision-report snapshots. Evolution reuses validated Phase 6 ranked suggestions;
+it does not claim a separate live model invocation. V2 source may pass the same
+static Builder checks, but no isolated build or working V2 prototype is available.
+Phase 8 adds a PostgreSQL-backed single-idea acceptance test and verifies local
+Redis/Celery task registration and dispatch. The acceptance run uses deterministic
+test providers; live model inference remains unverified. Admin provisioning,
+generated working prototypes, and production-grade object storage/file scanning
+remain outstanding. The complete production MVP acceptance loop has not passed.
 The architecture source of truth is [the supplied master blueprint](docs/PROJECT_SPEC.md).
 Read [decisions](docs/DECISIONS.md) and [verification status](docs/SETUP_STATUS.md)
 before continuing. No product KPIs, feedback, trust scores or AI results are fabricated.
@@ -461,30 +481,173 @@ before continuing. No product KPIs, feedback, trust scores or AI results are fab
 For the phase-by-phase implementation checklist and acceptance criteria, see
 [Detailed Remaining Work](docs/REMAINING_WORK.md).
 
-Included: React 19 / TypeScript 6 / Vite 8 / Tailwind 3 frontend with owner,
-reviewer and admin preview portals; idea submission and details; interactive
-prototypes; structured feedback; charts; trust and quality pending states;
-consensus; evidence-linked proposals; reports; assignments; activity and settings.
+### Developed and verified locally
 
-Preview records live in localStorage, and portal selection in sessionStorage.
-This is explicitly sample/local data, never a production source of truth.
-No AI-generated artifacts, measured production KPIs or trust scores are fabricated.
+- React 19 / TypeScript 6 / Vite 8 / Tailwind 3 frontend preview with owner,
+  reviewer, and admin navigation, sample prototypes, feedback screens, charts,
+  reports, and evidence-linked version proposals.
+- FastAPI registration/login and owner-scoped idea APIs. Database roles are
+  authoritative; public registration only creates owners.
+- PostgreSQL-backed exact-version reviewer assignments and one structured review
+  per assignment. Admins can list/create/revoke reviewer assignments, but do not
+  gain private idea read access.
+- Owners can publish a specific immutable version for review. Reviewers start
+  assignment-scoped sessions and submit complete, validated feedback for that exact
+  version. Idempotency keys make retries safe; feedback and the analysis outbox are
+  committed together before Celery dispatch. Phase 6 added the version-scoped
+  persisted analysis task after outbox receipt. The worker was restarted for Phase 8
+  and current task registration and real Redis/Celery dispatch were verified.
+- Frontend authenticated owner idea/version management, reviewer assignment queue
+  and full structured review workflow (including session startup, persisted receipts,
+  failure and retry states), admin assignment management, and sign-out. Offline
+  preview data and role switching remain explicitly separate.
+- Owner-authorized Requirement Agent runs use immutable idea versions, Celery,
+  strict Pydantic output validation, and PostgreSQL workflow provenance/results.
+  Provider/model, prompt version, attempt count, validation state, timestamps, and
+  safe errors are persisted. Ollama is the default backend provider; selecting
+  `AI_PROVIDER=gemini` requires backend-only `GEMINI_API_KEY` and `GEMINI_MODEL`.
+  Gemini is development-only and rejected in production configuration. No model
+  response is invented when credentials or the service are unavailable.
+- The Builder consumes a completed, validated requirements result for the exact
+  immutable idea version and generates source only for education placement
+  preparation. React/TypeScript/Vite files are generated from a fixed scaffold;
+  requirement output is JSON data, not executable code. Allowlisted paths,
+  dependencies, scripts, source capabilities, sizes, and hashes are checked.
+  Generated files are kept in ignored private storage with owner-scoped source access.
+  No Node/npm/Vite build is run: the build is explicitly `blocked_isolation`, the
+  record is unpublished, and there is no compiled artifact or preview URL.
+- Phase 6 analyzes only submitted PostgreSQL review records for one immutable idea
+  version. Celery dispatches durable runs; LangGraph sequences the Feedback Quality,
+  NLP, and Prioritization agents. Strict Pydantic contracts validate source feedback
+  IDs and explanations. Model judgments remain separate from deterministic checks.
+  Ollama embeddings are dimension-checked at 768 and persisted in pgvector; pairwise
+  cosine similarity above the documented 0.88 threshold is labeled likely similarity,
+  not proof of duplication.
+- Trust calculations use the blueprint weights and formula version. Currently only
+  feedback quality is measurable; unsupported history, peer alignment, behavioral
+  consistency, verified expertise, and community-validation factors remain missing.
+  The partial score renormalizes the observed factor weight and reports 30% evidence
+  coverage rather than treating missing factors as perfect.
+- Consensus uses `Trust × authenticity indicator × relevance`, normalizes by the
+  sum of raw feedback weights, and returns no weighted value when that denominator
+  is zero. Sample size, evidence coverage, feedback IDs, and an explicitly
+  uncalibrated uncertainty indicator are persisted. Priorities cite reviews/themes;
+  qualitative impact and feasibility are explained or marked unknown, never
+  fabricated as measured values.
+- Owner-authorized feedback, analytics, trust, and consensus pages now display
+  authenticated PostgreSQL results and queued/running/failed states. Offline preview
+  remains separate and is not used as analysis evidence.
+- Phase 7 adds owner-only proposal APIs backed by the exact immutable source version,
+  validated requirement run, completed feedback-analysis run, and its submitted
+  reviewer evidence. Suggestions include source feedback IDs, qualitative benefit,
+  assumptions, reviewer concerns, validation criteria, missing inputs, and Builder
+  scope. They are presented separately from owner approval. Approval of selected
+  supported changes creates a new immutable Draft version and a provenance-linked
+  requirement record; V1 is unchanged. The existing Builder generates and statically
+  validates source for the candidate only when it fits the allowlisted category.
+  Build remains `blocked_isolation`, unpublished, and not a working prototype.
+- Authenticated Evolution and Reports pages now use these owner-scoped APIs; explicit
+  offline preview screens remain fixture-only. Decision reports are immutable
+  snapshots linked to source version, requirement/feedback analysis runs, proposal,
+  and feedback IDs. They distinguish observed owner input, model interpretations,
+  deterministic calculations, assumptions, and recommendations, and retain missing
+  evidence and uncertainty rather than inventing product outcomes.
+- Authenticated idea APIs support typed owner-scoped create/list/detail, bounded
+  pagination, status/category/text filtering, immutable version history and
+  Draft/Archived lifecycle transitions. Version creation records expected-version
+  concurrency and provenance.
+- Private reference uploads store metadata/checksums in PostgreSQL and file bytes in
+  an ignored local directory. Server validation restricts file type/signature/name
+  and size; authorized owner/assigned-reviewer downloads are private. This is not
+  production S3 or malware scanning.
+- Versioned migrations for users, immutable ideas/versions, reviewer assignments,
+  lifecycle constraints, asset metadata, review cycles/sessions, feedback provenance,
+  the feedback outbox, requirement-analysis runs, prototype source/build records,
+  persisted feedback-analysis runs, 768-dimensional pgvector embeddings, evolution
+  proposals, and decision-report snapshots are applied at revision `0010`.
+- Phase 8 PostgreSQL acceptance exercises registration/login for owner, reviewer,
+  and admin; V1 and requirement persistence; source-only prototype generation;
+  exact-version publication/assignment; idempotent feedback; analysis results;
+  immutable V2 approval; report persistence/reload; and owner/reviewer isolation.
+  Chat and embedding outputs in this one-idea test are deterministic doubles, not
+  actual model calls. Test roles are operator-seeded because an audited production
+  provisioning flow is not implemented.
+- Local `.env` configuration is ignored by Git. It is for development only; do
+  not commit it or use its credentials in a shared or production environment.
+- PostgreSQL 16 with pgvector 0.6.0 is reachable locally; migrations are at
+  revision `0010`. Redis is reachable, and a Celery worker completed its live
+  integration task. FastAPI readiness reports PostgreSQL and Redis connected.
+- Phase 3 verification: Ruff passed; 37 backend tests passed with 2 environment-gated
+  tests skipped; the PostgreSQL/Redis-backed review integration passed separately.
+  Frontend: 16 unit tests, 13 Playwright browser tests, lint, typecheck, and
+  production build passed.
+- Phase 4 verification: backend unit suite, frontend unit/browser tests, typecheck,
+  lint, and production build passed. A deterministic provider result was persisted
+  and retrieved through the authorized API against PostgreSQL in a rolled-back
+  integration transaction; live PostgreSQL/Redis/Celery health also passed. A
+  temporary isolated worker registered the Requirement Agent task. The then-running
+  worker was stale and was restarted and verified during Phase 8. Ollama was
+  unavailable locally and no live provider call was made; mocked output is not
+  evidence of real-model integration.
+- Phase 5 verification: Builder path/dependency/capability validation, ownership,
+  immutable source linkage, persistence, missing-source handling, and build-blocked
+  behavior are covered by backend tests. Exact outcomes are reported after the
+  phase-specific checks; no generated source was executed or built.
+- Phase 6 verification: deterministic analysis and authorization tests plus a
+  rollback-isolated PostgreSQL/pgvector integration verified durable analysis,
+  embedding persistence, and the pgvector cosine-distance query. Frontend browser
+  checks cover authenticated feedback, analytics, trust, and consensus views. Exact
+  final test totals and the live-provider limitation are recorded in
+  [SETUP_STATUS](docs/SETUP_STATUS.md). Tests use deterministic provider/embedding
+  doubles; no real Ollama/Gemini model inference is claimed.
+- Phase 8 final verification: backend suite with `RUN_INTEGRATION=1`: `80 passed`;
+  Ruff passed. Frontend unit tests: `16 passed`; Oxlint, TypeScript typecheck,
+  production build, and Playwright: `14 passed`. PostgreSQL 16, pgvector 0.6.0,
+  Redis, migration head `0010`, and a live worker ping were verified. The current
+  worker registers health, feedback outbox, feedback analysis, and requirements
+  tasks.
+- Playwright currently covers the preview/offline UX; it is not browser E2E against
+  authenticated PostgreSQL API mode. The Phase 8 persisted journey is exercised
+  through FastAPI in a PostgreSQL integration test.
+- Phase 7 does not add an independent model call. The Evolution Agent validates and
+  shapes the persisted, model-generated Phase 6 priorities into evidence-linked
+  suggestions; the owner explicitly approves selected changes. The Decision
+  Intelligence workflow builds a deterministic report from persisted inputs.
+- Phase 7 leaves V2 in Draft and the prototype source-only. A real validated V2
+  remains blocked until an isolated build/preview boundary is reviewed and supplied.
+- A trusted database operator must provision reviewer/admin roles until a reviewed,
+  auditable bootstrap process is implemented. No public self-promotion API exists.
+- `npm audit fix` applied compatible frontend updates. Seven advisories remain in
+  the Tailwind 3 development dependency tree; the complete suggested fix requires a
+  Tailwind major upgrade. No backend vulnerability database scanner was available;
+  `pip check` verifies dependency consistency only.
 
-Completed in the free/local implementation:
+Frontend preview data still lives in browser storage and is not the production
+source of truth. Preview role selection is not server-side role authorization.
+The generated Builder source is not a built or working preview. No live
+provider-generated analytics or measured production KPIs are claimed.
 
-- Python authentication with scrypt password hashing and signed bearer tokens.
-- Owner-scoped auth and idea endpoints.
-- PostgreSQL migrations for users, ideas, and immutable idea versions.
-- Optional Ollama chat/embedding provider boundary.
-- Frontend register/login, in-memory API identity, sign-out, API idea listing and
-  API idea creation, with an explicit offline preview mode.
-- Backend: 27 non-integration tests and Ruff pass.
-- Frontend: 14 unit tests, lint, and production build pass.
+### Remaining before MVP and production readiness
 
-Still pending are real PostgreSQL/pgvector and Redis/Celery integration, persistent
-feedback, reviewer sessions, requirement analysis, prototype generation/isolation,
-trust/consensus, evolution, reports, and research evaluation. The builder boundary
-is documented in [prototype-builder](prototype-builder/README.md).
+1. **Complete role operations:** add a reviewed, auditable operator process for
+   provisioning reviewer/admin accounts, then add account recovery/rate limits.
+2. **Verify a real model provider:** configure and exercise the selected development
+   provider and model separately from deterministic mocked tests. This environment
+   has no running Ollama endpoint and no configured Gemini key/model.
+3. **Supply a reviewed prototype build boundary:** the source-only Builder currently
+   generates one education/placement template. Provide a disposable, nonprivileged
+   executor with resource limits, no secrets, restricted egress, and cleanup before
+   enabling builds, tests, artifacts, previews, or reviewer launch. See
+   [prototype-builder](prototype-builder/README.md).
+4. **Security and operations:** add a backend dependency-vulnerability audit,
+   address remaining Tailwind 3 toolchain advisories, review role bootstrap,
+   production asset storage and data-protection controls, and test recovery.
+5. **Complete release acceptance:** run authenticated browser E2E against persistent
+   API mode, use real configured provider output, validate multi-review evidence,
+   and perform isolated V1/V2 build and preview tests. Do not deploy production
+   traffic before the security and isolation gates pass.
+6. **Deployment planning:** separately approve any future deployment architecture.
+   No AWS or paid cloud resources are provisioned for this local work.
 
 ## Prerequisites
 
@@ -504,15 +667,20 @@ is documented in [prototype-builder](prototype-builder/README.md).
 | Frontend preview | Node.js/npm and VS Code | Yes, already working |
 | Backend unit tests | Python 3.12 virtual environment | Yes, already working |
 | Auth and idea API tests | Python packages plus in-memory SQLite test database | Yes, already working |
-| Real persistent API | PostgreSQL with pgvector | Not yet; required for integration |
-| Celery jobs and live workflows | Redis plus a Celery worker | Not yet; required for integration |
-| Local requirement analysis/embeddings | Ollama plus downloaded models | Not yet; required for AI workflows |
-| Browser acceptance tests | Microsoft Edge on Windows | Optional, already available |
+| Real persistent API | PostgreSQL with pgvector | Available locally; migrations and readiness verified |
+| Celery jobs and live workflows | Redis plus a Celery worker | Current task registration, health ping, and outbox handoff verified; live model execution remains unverified |
+| Local requirement analysis/embeddings | Ollama plus downloaded models, or configured development Gemini | Ollama is selected but unavailable; no Gemini key/model is configured |
+| Browser acceptance tests | Playwright Chromium and host browser libraries | Available and passing; current suite exercises preview, not persistent API mode |
 | Generated prototype build | Node.js in a separately isolated build boundary | Later; security gate required |
 | Production hosting | Not selected; AWS is intentionally excluded | No |
 
 VS Code extensions can edit, lint, test, and inspect these services, but extensions
 do not replace PostgreSQL, Redis, Ollama, or a process-isolated prototype builder.
+PostgreSQL, Redis, and the worker here are local Codespaces services, not managed
+free-tier products with independent service-level guarantees. Codespaces use is
+subject to account compute/storage quotas; 24/7 availability has not been verified.
+Ollama model storage/compute and Gemini API quotas (if enabled) are also subject to
+environment/provider limits.
 
 ## Start Locally
 
@@ -530,6 +698,50 @@ The frontend has an optional development proxy for the Python API at port 8000.
 Use `Continue to preview` for browser-local mode, or register/sign in to use API
 mode. API failures are shown explicitly and do not silently create production data.
 For cached offline installation, use `npm --prefix frontend ci --offline --no-audit --no-fund`.
+
+### GitHub Codespaces (Linux)
+
+Keep `.env` ignored. Use `.env.example` as a variable-name reference, then configure
+`DATABASE_URL`, `JWT_SECRET`, and any provider credentials through Codespaces
+Secrets or ignored local configuration. Never paste secrets into chat, commit them,
+or print them in logs. Gemini uses backend-only `GEMINI_API_KEY` and `GEMINI_MODEL`;
+Ollama uses `OLLAMA_BASE_URL`, `OLLAMA_CHAT_MODEL`, and
+`OLLAMA_EMBEDDING_MODEL`.
+
+```bash
+cd backend
+.venv/bin/alembic upgrade head
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+# In a second terminal:
+cd backend
+.venv/bin/celery -A app.workers.celery_app:celery_app worker --loglevel=INFO --concurrency=1
+# In a third terminal:
+cd frontend
+npm run dev -- --host 0.0.0.0
+```
+
+Run checks from the repository root:
+
+```bash
+backend/.venv/bin/ruff check backend/app backend/tests backend/alembic
+backend/.venv/bin/pytest backend/tests -q
+RUN_INTEGRATION=1 backend/.venv/bin/pytest backend/tests -q
+backend/.venv/bin/python -m pip check
+npm --prefix frontend test
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e
+npm --prefix frontend audit
+npm --prefix frontend audit --omit=dev
+```
+
+If API readiness fails, check the configured PostgreSQL host/port, the `vector`
+extension, `alembic current`, and Redis before restarting the worker. Inspect task
+registration; a successful ping alone does not prove requirement or feedback
+analysis tasks are registered. If analysis reports provider configuration or
+connectivity failure, configure the selected provider and retry. Do not replace it
+with preview fixtures.
 
 `.env.example` lists backend configuration. Never reuse sample database credentials
 outside local development. Portal switching and client-side route guards are
@@ -609,23 +821,20 @@ Readiness (`GET /api/v1/health/ready`) returns 503 if PostgreSQL, the vector ext
 migration metadata or Redis is unavailable. This is not a worker or AWS readiness claim.
 The integration test additionally submits and receives a real Celery task.
 
-## Next Acceptance Gate
+## Current Acceptance Gate
 
-The frontend preview passed 9 unit tests, 8 browser tests, lint and production build
-on 2026-09-30. See [the frontend guide](frontend/README.md) for covered flows.
-This is not acceptance of the real idea-to-AI-build-to-review-to-V2 backend loop.
+Phase 8's local persisted workflow test passes with deterministic provider doubles.
+It is not real-model acceptance, a built prototype, or a production release gate.
+The remaining blockers are reviewed admin/reviewer provisioning, a verified live
+model provider, and a reviewed isolated prototype execution/build/preview boundary.
 
-The immediate next gate is to run PostgreSQL/pgvector and Redis locally, apply
-migrations, verify readiness, execute the Celery ping task, and test API registration
-and idea persistence through the frontend. After that, implement persistent feedback
-and reviewer sessions. The current auth/idea unit tests do not replace real-service
-integration tests.
-
-Backend progress on 2026-09-30: dependencies installed, 25 non-integration tests
-passed, Ruff passed, and the native API started successfully. Its liveness is 200;
-readiness correctly reports 503 while PostgreSQL and Redis are unavailable. Real
-database/worker integration is still pending. API documentation is available at
-http://127.0.0.1:8000/docs while the Python process is running.
+Local PostgreSQL/pgvector, Redis/Celery, migrations, worker task registration,
+backend/frontend checks, and 14 Playwright preview tests have passed. Dependency
+advisories remain in the Tailwind 3 development toolchain; authenticated browser
+E2E and live model inference are unverified. Do not release production traffic
+while authorization, data-protection, or generated-code isolation gates remain
+unresolved. See [verification status](docs/SETUP_STATUS.md) and
+[remaining work](docs/REMAINING_WORK.md).
 
 Keep original idea versions immutable, persist feedback before queueing analysis,
 record AI provenance and keep generated-code execution isolated throughout later phases.

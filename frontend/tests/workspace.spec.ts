@@ -150,22 +150,391 @@ test('second prototype records requests and can be published for review', async 
   await page.getByRole('button', { name: 'Publish for review', exact: true }).click()
   await expect(page.locator('.detail-meta').getByText('Review open', { exact: true })).toBeVisible()
   await page.getByRole('tab', { name: 'Requirements', exact: true }).click()
-  await expect(page.getByText('Owner-provided brief', { exact: true })).toBeVisible()
+  await expect(page.getByText('Offline preview brief', { exact: true })).toBeVisible()
+  await expect(page.getByText('This is owner-provided preview content. No AI workflow has run in offline preview mode.', { exact: true })).toBeVisible()
 })
 
-test('auth preview saves no credentials and preserves the chosen portal on reload', async ({ page }) => {
+test('authenticated owner sees generated source as unbuilt and unpublished', async ({ page }) => {
+  const timestamp = '2026-10-23T00:00:00Z'
+  const version = {
+    id: 'idea-version-1',
+    owner_id: 'owner-1',
+    version_id: 'idea-version-1',
+    source_version_id: null,
+    created_by_id: 'owner-1',
+    change_summary: 'Initial idea submission',
+    title: 'Campus Compass',
+    category: 'Education',
+    problem: 'Students need a better placement preparation process.',
+    solution: 'A guided workspace for career preparation.',
+    audience: 'College students',
+    features: ['Preparation roadmap'],
+    constraints: 'No live integrations.',
+    version: 1,
+    status: 'Draft',
+    created_at: timestamp,
+    updated_at: timestamp,
+    version_created_at: timestamp,
+    assets: [],
+  }
+  const requirement = {
+    id: 'requirement-run-1',
+    idea_id: 'idea-1',
+    idea_version_id: version.id,
+    source_version: 1,
+    workflow_run_id: 'requirements-workflow-1',
+    provider: 'ollama',
+    model_version: 'deterministic-test-double',
+    prompt_version: 'requirement-spec-v1',
+    status: 'completed',
+    validation_status: 'valid',
+    result: {
+      problem: [{ text: 'A clearer placement preparation process.', basis: 'explicit', source_fields: ['problem'] }],
+      target_users: [{ text: 'College students.', basis: 'explicit', source_fields: ['audience'] }],
+      user_journeys: [],
+      core_features: [{ text: 'Preparation roadmap.', basis: 'explicit', source_fields: ['features'] }],
+      constraints: [],
+      assumptions: [],
+      acceptance_criteria: [],
+      open_questions: ['Which opportunity data source is intended?'],
+    },
+    error_message: null,
+    attempt_count: 1,
+    created_at: timestamp,
+    started_at: timestamp,
+    completed_at: timestamp,
+    updated_at: timestamp,
+  }
+  const prototype = {
+    id: 'prototype-build-1',
+    idea_id: 'idea-1',
+    idea_version_id: version.id,
+    source_version: 1,
+    requirement_analysis_run_id: requirement.id,
+    workflow_run_id: 'prototype-workflow-1',
+    template_id: 'education-placement-preparation',
+    template_version: '1.0',
+    status: 'source_generated',
+    validation_status: 'passed',
+    build_status: 'blocked_isolation',
+    publish_status: 'unpublished',
+    plan: null,
+    manifest: null,
+    validation_results: {
+      scope: 'Static checks only.',
+      checks: [{ name: 'allowlisted_paths', status: 'passed' }],
+      build_boundary_available: false,
+      built_artifact_available: false,
+    },
+    source_files: [{ path: 'src/Prototype.tsx', sha256: 'a'.repeat(64), size_bytes: 45 }],
+    artifact_metadata: {
+      artifact_type: 'generated_source',
+      file_count: 1,
+      total_size_bytes: 45,
+      source_sha256: 'b'.repeat(64),
+      built_artifact_available: false,
+    },
+    preview_url: null,
+    error_message: null,
+    created_at: timestamp,
+    completed_at: timestamp,
+  }
+  let analysisStarted = false
+  const persistedReview = {
+    id: 'feedback-1',
+    assignment_id: 'assignment-1',
+    idea_id: 'idea-1',
+    idea_version_id: version.id,
+    reviewer_id: 'reviewer-1',
+    review_session_id: 'session-1',
+    idempotency_key: 'feedback-key',
+    rating: 4,
+    usability_score: 4,
+    usefulness_score: 4,
+    completeness_score: 3,
+    feasibility_score: 4,
+    would_use: true,
+    feedback_text: 'A clearer placement roadmap would help students prepare.',
+    strengths: 'The preparation flow is understandable.',
+    concerns: 'The next steps are not explicit enough.',
+    suggested_improvements: 'Add a staged preparation roadmap.',
+    usage_context: 'Reviewed the assigned version on a laptop.',
+    created_at: timestamp,
+    analysis_status: 'received',
+    analysis_error: null,
+  }
+  const feedbackAnalysis = {
+    id: 'feedback-analysis-1',
+    idea_id: 'idea-1',
+    idea_version_id: version.id,
+    source_version: 1,
+    workflow_run_id: 'feedback-workflow-1',
+    input_digest: 'c'.repeat(64),
+    source_feedback_ids: [persistedReview.id],
+    provider: 'ollama',
+    model_version: 'test-model',
+    embedding_model_version: 'nomic-embed-text',
+    prompt_version: 'feedback-intelligence-v1',
+    status: 'completed',
+    validation_status: 'valid',
+    result: {
+      source_feedback_ids: [persistedReview.id],
+      quality: [{
+        feedback_id: persistedReview.id,
+        relevance: 0.8,
+        constructiveness: 0.7,
+        originality: 0.8,
+        internal_consistency: 0.9,
+        spam_risk: 0.1,
+        authenticity_indicator: 0.9,
+        self_reported_confidence: 0.8,
+        uncertainty: 'Only this persisted review was available.',
+        explanations: { relevance: 'Addresses the idea.' },
+      }],
+      deterministic_signals: [{
+        feedback_id: persistedReview.id,
+        text_characters: 60,
+        structured_ratings_complete: true,
+        exact_duplicate_of: null,
+      }],
+      themes: [{
+        label: 'Preparation roadmap',
+        kind: 'feature_request',
+        summary: 'The review requests clearer preparation steps.',
+        feedback_ids: [persistedReview.id],
+      }],
+      contradictions: [],
+      duplicate_pairs: [],
+      trust: [{
+        feedback_id: persistedReview.id,
+        score: 0.82,
+        factor_json: {
+          review_quality: 0.82,
+          historical_accuracy: null,
+          peer_alignment: null,
+          consistency: null,
+          verified_expertise: null,
+          community_validation: null,
+        },
+        factor_weights: {
+          review_quality: 0.3,
+          historical_accuracy: 0.2,
+          peer_alignment: 0.15,
+          consistency: 0.15,
+          verified_expertise: 0.1,
+          community_validation: 0.1,
+        },
+        formula_version: 'trust-baseline-partial-v1',
+        evidence_coverage: 0.3,
+        missing_factors: ['historical_accuracy', 'peer_alignment', 'consistency', 'verified_expertise', 'community_validation'],
+        interpretation: 'Partial feedback-level estimate, not a reputation score.',
+      }],
+      consensus: {
+        sample_size: 1,
+        evidence_coverage: 1,
+        raw_support_count: 1,
+        raw_support: 1,
+        normalized_weight_denominator: 0.5904,
+        raw_feedback_weights: { 'feedback-1': 0.5904 },
+        normalized_feedback_weights: { 'feedback-1': 1 },
+        weighted_support: 1,
+        confidence_indicator: 0.1333333333,
+        confidence_method: 'Uncalibrated indicator using sample size and model confidence.',
+        uncertainty: 'Small samples are not definitive.',
+        evidence_ids: [persistedReview.id],
+      },
+      priorities: [{
+        rank: 1,
+        priority: 'P1',
+        title: 'Preparation roadmap',
+        rationale: 'The review asks for clearer preparation steps.',
+        feedback_ids: [persistedReview.id],
+        theme_labels: ['Preparation roadmap'],
+        evidence_count: 1,
+        weighted_support: 1,
+        impact: 'medium',
+        impact_rationale: 'It addresses the stated preparation problem.',
+        feasibility: 'unknown',
+        feasibility_rationale: 'Implementation effort is not recorded.',
+        assumptions: [],
+        missing_inputs: ['Implementation effort'],
+      }],
+    },
+    error_message: null,
+    attempt_count: 1,
+    created_at: timestamp,
+    started_at: timestamp,
+    completed_at: timestamp,
+  }
+  let evolutionProposal: Record<string, unknown> | null = null
+  let decisionReport: Record<string, unknown> | null = null
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v1/auth/login') {
+      await route.fulfill({
+        json: {
+          access_token: 'test-owner-token',
+          token_type: 'bearer',
+          user: { id: 'owner-1', email: 'owner@example.test', role: 'owner' },
+        },
+      })
+    } else if (path === '/api/v1/ideas' && request.method() === 'GET') {
+      await route.fulfill({ json: { items: [{ ...version, id: 'idea-1' }], total: 1, limit: 20, offset: 0 } })
+    } else if (path === '/api/v1/ideas/idea-1') {
+      await route.fulfill({ json: { ...version, id: 'idea-1', versions: [version], status_history: [] } })
+    } else if (path.endsWith('/versions/1/feedback')) {
+      await route.fulfill({ json: [persistedReview] })
+    } else if (path.endsWith('/versions/1/feedback-analysis') && request.method() === 'POST') {
+      analysisStarted = true
+      await route.fulfill({ json: feedbackAnalysis })
+    } else if (path.endsWith('/versions/1/feedback-analysis')) {
+      await route.fulfill({ json: analysisStarted ? feedbackAnalysis : null })
+    } else if (path.endsWith('/versions/1/feedback-analysis/feedback-analysis-1')) {
+      await route.fulfill({ json: feedbackAnalysis })
+    } else if (path.endsWith('/requirements')) {
+      await route.fulfill({ json: requirement })
+    } else if (path.endsWith('/prototypes') && request.method() === 'GET') {
+      await route.fulfill({ json: null })
+    } else if (path.endsWith('/prototypes') && request.method() === 'POST') {
+      await route.fulfill({ json: prototype })
+    } else if (path.endsWith('/prototypes/prototype-build-1/source')) {
+      await route.fulfill({
+        json: {
+          prototype_build_id: prototype.id,
+          files: { 'src/Prototype.tsx': "export default function Safe() { return <div>source-only</div> }" },
+        },
+      })
+    } else if (path.endsWith('/evolution') && request.method() === 'POST') {
+      evolutionProposal = {
+        id: 'evolution-1',
+        idea_id: 'idea-1',
+        idea_version_id: version.id,
+        source_version: 1,
+        requirement_analysis_run_id: requirement.id,
+        feedback_analysis_run_id: feedbackAnalysis.id,
+        source_feedback_ids: [persistedReview.id],
+        suggestions: [{
+          rank: 1,
+          priority: 'P1',
+          title: 'Preparation roadmap',
+          rationale: 'The persisted review requests clearer steps.',
+          source_feedback_ids: [persistedReview.id],
+          expected_benefit: { interpretation: 'Addresses the cited concern.', qualitative_impact: 'medium', weighted_support: 1 },
+          assumptions: [],
+          risks: [{ feedback_id: persistedReview.id, concern: persistedReview.concerns }],
+          validation_criteria: [],
+          validation_note: 'Owner and reviewers must validate this change.',
+          feasibility: 'unknown',
+          feasibility_rationale: 'No effort estimate is recorded.',
+          missing_inputs: ['Implementation effort'],
+          builder_supported: true,
+        }],
+        status: 'proposed',
+        target_version_id: null,
+        prototype_build_id: null,
+        provider: 'ollama',
+        model_version: 'test-model',
+        prompt_version: 'evolution-evidence-proposals-v1',
+        validation_results: {},
+        created_at: timestamp,
+        approved_at: null,
+      }
+      await route.fulfill({ json: evolutionProposal })
+    } else if (path.endsWith('/evolution') && request.method() === 'GET') {
+      await route.fulfill({ json: evolutionProposal })
+    } else if (path.endsWith('/evolution/evolution-1/approve')) {
+      evolutionProposal = {
+        ...evolutionProposal,
+        status: 'approved',
+        target_version_id: 'idea-version-2',
+        prototype_build_id: 'prototype-build-2',
+        validation_results: {
+          target_version: 2,
+          prototype_source_status: 'source_generated',
+          prototype_build_status: 'blocked_isolation',
+          prototype_publish_status: 'unpublished',
+        },
+      }
+      await route.fulfill({ json: evolutionProposal })
+    } else if (path.endsWith('/decision-reports') && request.method() === 'POST') {
+      decisionReport = {
+        id: 'decision-report-1',
+        idea_id: 'idea-1',
+        idea_version_id: version.id,
+        source_version: 1,
+        requirement_analysis_run_id: requirement.id,
+        feedback_analysis_run_id: feedbackAnalysis.id,
+        evolution_proposal_id: 'evolution-1',
+        source_feedback_ids: [persistedReview.id],
+        report_version: 'decision-report-v1',
+        report: { problem: { value: version.problem, classification: 'observed_owner_input' } },
+        created_at: timestamp,
+      }
+      await route.fulfill({ json: decisionReport })
+    } else if (path.endsWith('/decision-reports')) {
+      await route.fulfill({ json: decisionReport })
+    } else {
+      await route.fulfill({ status: 404, json: { detail: 'Unexpected API request.' } })
+    }
+  })
+
+  await page.goto('/#/auth')
+  await page.getByLabel('Email address').fill('owner@example.test')
+  await page.getByLabel('Password').fill('test-password-value')
+  await page.getByRole('button', { name: 'Sign in', exact: false }).click()
+  await page.goto('/#/ideas/idea-1')
+  await page.getByRole('tab', { name: 'Requirements', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Safe prototype source' })).toBeVisible()
+  await page.getByRole('button', { name: 'Generate prototype source' }).click()
+  await expect(page.getByText('Build: blocked — an isolated disposable build environment is not available.')).toBeVisible()
+  await expect(page.getByText('Preview: unpublished; no working preview exists.')).toBeVisible()
+  await page.getByRole('button', { name: 'View generated source' }).click()
+  await page.getByText('src/Prototype.tsx', { exact: true }).click()
+  await expect(page.getByText(/export default function Safe/)).toBeVisible()
+  await page.goto('/#/analytics')
+  await expect(page.getByText('1 persisted review in this version snapshot.')).toBeVisible()
+  await page.getByRole('button', { name: 'Analyze persisted feedback' }).click()
+  await expect(page.getByText('Preparation roadmap', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('normalized weighted support 1.0000')).toBeVisible()
+  await page.goto('/#/trust')
+  await expect(page.getByText('feedback-1', { exact: true })).toBeVisible()
+  await expect(page.getByText('historical_accuracy, peer_alignment, consistency, verified_expertise, community_validation')).toBeVisible()
+  await page.goto('/#/consensus')
+  await expect(page.getByText('Trust-weighted support', { exact: true })).toBeVisible()
+  await expect(page.getByText('1 of 1 persisted reviews would use this version.')).toBeVisible()
+  await page.goto('/#/feedback')
+  await expect(page.getByText('A clearer placement roadmap would help students prepare.')).toBeVisible()
+  await page.goto('/#/evolution?idea=idea-1')
+  await page.getByRole('button', { name: 'Generate evidence-linked proposal' }).click()
+  await expect(page.getByText('Generated suggestions — not approved')).toBeVisible()
+  await page.getByRole('checkbox', { name: 'Approve Preparation roadmap' }).check()
+  await page.getByRole('button', { name: 'Approve 1 selected change(s)' }).click()
+  await expect(page.getByText('Candidate V2 · Draft')).toBeVisible()
+  await expect(page.getByText(/build: blocked_isolation/)).toBeVisible()
+  await page.goto('/#/reports?idea=idea-1')
+  await page.getByRole('button', { name: 'Create report snapshot' }).click()
+  await expect(page.getByText('Persisted snapshot · decision-report-v1')).toBeVisible()
+  await expect(page.getByText(/decision-report-1/)).toBeVisible()
+})
+
+test('offline auth preview sends or saves no credentials and preserves the chosen portal', async ({ page }) => {
+  const authRequests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/api/v1/auth/')) authRequests.push(request.url())
+  })
   await page.goto('/#/auth')
   await page.getByRole('tab', { name: 'Create account', exact: true }).click()
-  await page.getByLabel('Full name').fill('Preview Tester')
   await page.getByLabel('Email address').fill('preview@example.com')
   await page.getByLabel('Password', { exact: true }).fill('test-only-password')
-  await page.getByRole('button', { name: 'Create account', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText('No credentials were sent or saved')
   const stored = await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))
   expect(stored).not.toContain('test-only-password')
   expect(stored).not.toContain('preview@example.com')
+  await expect(page.getByText('Offline mode does not send or save credentials.')).toBeVisible()
   await page.getByLabel('Preview role').selectOption('reviewer')
   await page.getByRole('button', { name: 'Continue to preview', exact: true }).click()
+  expect(authRequests).toEqual([])
   await page.reload()
   await expect(page.getByLabel('Preview portal')).toHaveValue('reviewer')
   await page.goto('/#/analytics')

@@ -5,4 +5,21 @@ class Base(DeclarativeBase):
     pass
 
 
-from app.models.entities import Idea, IdeaVersion, User  # noqa: E402,F401
+from app.models.entities import (  # noqa: E402,F401
+    DecisionReport,
+    EvolutionProposal,
+    FeedbackAnalysisOutbox,
+    FeedbackAnalysisRun,
+    FeedbackEmbedding,
+    Idea,
+    IdeaAsset,
+    IdeaReview,
+    IdeaStatusEvent,
+    IdeaVersion,
+    PrototypeBuild,
+    RequirementAnalysisRun,
+    ReviewCycle,
+    ReviewerAssignment,
+    ReviewSession,
+    User,
+)

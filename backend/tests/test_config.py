@@ -6,7 +6,17 @@ from app.config import Settings
 
 @pytest.fixture(autouse=True)
 def isolated_settings_environment(monkeypatch):
-    for name in ("APP_ENV", "DATABASE_URL", "REDIS_URL", "CORS_ORIGINS", "JWT_SECRET"):
+    for name in (
+        "APP_ENV",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "CORS_ORIGINS",
+        "JWT_SECRET",
+        "AI_PROVIDER",
+        "GEMINI_API_KEY",
+        "GEMINI_MODEL",
+        "OLLAMA_EMBEDDING_DIMENSIONS",
+    ):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -15,6 +25,12 @@ def test_development_defaults_remain_usable():
     assert settings.app_env == "development"
     assert settings.database_url.scheme == "postgresql+psycopg"
     assert "http://127.0.0.1:5173" in settings.cors_origins
+    assert settings.ollama_embedding_dimensions == 768
+
+
+def test_embedding_dimension_must_match_versioned_pgvector_schema():
+    with pytest.raises(ValidationError, match="must be 768"):
+        Settings(_env_file=None, ollama_embedding_dimensions=384)
 
 
 @pytest.mark.parametrize(
@@ -80,3 +96,18 @@ def test_validation_error_text_does_not_expose_configuration_secrets():
     with pytest.raises(ValidationError) as failure:
         Settings(_env_file=None, database_url=secret_url)
     assert "never-print-this" not in str(failure.value)
+
+
+def test_gemini_is_an_opt_in_development_provider_not_production_default():
+    settings = Settings(_env_file=None)
+    assert settings.ai_provider == "ollama"
+    with pytest.raises(ValidationError, match="development-only"):
+        Settings(
+            _env_file=None,
+            app_env="production",
+            cors_origins=["https://app.example.com"],
+            database_url="postgresql+psycopg://user:strong-pass@db.example.com/veridica",
+            redis_url="rediss://cache.example.com:6379/0",
+            jwt_secret="a" * 32,
+            ai_provider="gemini",
+        )

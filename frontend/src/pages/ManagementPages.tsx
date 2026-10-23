@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Activity, ArrowRight, Check, Download, FileText, LockKeyhole, Plus, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 import { downloadFile, reviewers } from '../services/preview'
 import type { Role } from '../services/preview'
 import { useWorkspace } from '../services/workspace'
-import { login, register } from '../services/auth'
+import { getAccessToken, login, register } from '../services/auth'
+import { createAdminAssignment, listAdminAssignments, revokeAdminAssignment } from '../services/authorization'
+import type { AdminAssignment } from '../services/authorization'
 import { Badge, dateLabel, Empty, Modal, PageHeading, SectionHeading, Status } from '../components/ui'
 
 export function WorkflowMonitor() {
@@ -16,6 +18,67 @@ export function WorkflowMonitor() {
 }
 
 export function AdminPanel() {
+  return getAccessToken() ? <ApiAdminPanel /> : <PreviewAdminPanel />
+}
+
+function ApiAdminPanel() {
+  const [assignments, setAssignments] = useState<AdminAssignment[]>([])
+  const [ideaId, setIdeaId] = useState('')
+  const [version, setVersion] = useState('1')
+  const [reviewerEmail, setReviewerEmail] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    listAdminAssignments()
+      .then((records) => { if (active) setAssignments(records) })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Assignments could not be loaded.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [refresh])
+
+  async function assign(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await createAdminAssignment(ideaId.trim(), Number(version), reviewerEmail.trim())
+      setIdeaId('')
+      setReviewerEmail('')
+      setRefresh((value) => value + 1)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The reviewer could not be assigned.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function revoke(assignmentId: string) {
+    setBusy(true)
+    setError('')
+    try {
+      await revokeAdminAssignment(assignmentId)
+      setRefresh((value) => value + 1)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The assignment could not be revoked.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <><PageHeading eyebrow="AUTHORIZED ADMINISTRATION" title="Manage version-specific reviewer access.">Administrators can assign or revoke a reviewer for an exact idea version. This view does not grant access to the idea itself.</PageHeading>
+    <form className="review-form" onSubmit={assign}><h2>Assign a reviewer</h2><label>Idea ID<input required minLength={36} maxLength={36} value={ideaId} onChange={(event) => setIdeaId(event.target.value)} placeholder="UUID supplied by the idea owner" /></label><div className="form-two"><label>Version<input required type="number" min={1} value={version} onChange={(event) => setVersion(event.target.value)} /></label><label>Reviewer account email<input required type="email" value={reviewerEmail} onChange={(event) => setReviewerEmail(event.target.value)} placeholder="reviewer@example.com" /></label></div>{error && <p role="alert" className="error">{error}</p>}<button className="button primary" disabled={busy}>{busy ? 'Saving...' : 'Assign reviewer'}<ArrowRight size={15} /></button></form>
+    <div className="section-space"><SectionHeading title="Reviewer assignments" />{loading ? <div role="status" className="empty">Loading assignments...</div> : assignments.length ? <div className="table-scroll"><table><thead><tr><th>Idea</th><th>Version</th><th>Reviewer</th><th>Status</th><th>Review</th><th>Action</th></tr></thead><tbody>{assignments.map((assignment) => <tr key={assignment.id}><td>{assignment.idea_title}<small>{assignment.idea_id}</small></td><td>V{assignment.version}</td><td>{assignment.reviewer_email}</td><td><Status value={assignment.active ? 'Active' : 'Revoked'} /></td><td>{assignment.review_submitted ? 'Submitted' : 'Pending'}</td><td>{assignment.active && <button className="button danger compact" disabled={busy} onClick={() => void revoke(assignment.id)}>Revoke</button>}</td></tr>)}</tbody></table></div> : <Empty title="No reviewer assignments yet" />}</div>
+  </>
+}
+
+function PreviewAdminPanel() {
   const { state, role, update, notify } = useWorkspace()
   const [tab, setTab] = useState('Assignments')
   const [modal, setModal] = useState(false)

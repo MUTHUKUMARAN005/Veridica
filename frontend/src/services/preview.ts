@@ -1,5 +1,5 @@
 export type Role = 'owner' | 'reviewer' | 'admin'
-export type IdeaStatus = 'Draft' | 'Ready for review' | 'Review open' | 'Evolution ready'
+export type IdeaStatus = 'Draft' | 'Ready for review' | 'Review open' | 'Evolution ready' | 'Archived'
 export type Idea = {
   id: string
   title: string

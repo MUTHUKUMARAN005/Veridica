@@ -1,28 +1,42 @@
 # Veridica: Detailed Remaining Work
 
-**Updated:** 2026-10-09  
-**Purpose:** Implementation checklist from the current frontend preview to a working, secure, AWS-deployed product.  
-**Current milestone:** Free/local auth and idea vertical slice implemented; frontend
-API connection implemented; real PostgreSQL/Redis integration and remaining product
-work are pending.
+**Updated:** 2026-10-23
+**Purpose:** Implementation checklist from the current local foundation to the
+verified single-idea MVP. Cloud deployment is a later, separately approved phase.
+**Current milestone:** Phases 1-7 are implemented with acceptance limitations
+documented; Phase 8's local persisted-workflow integration test and available
+service checks pass. The Builder cannot execute/build/publish without a reviewed
+isolation boundary. Phase 8's end-to-end test uses deterministic provider doubles;
+live model inference is unverified. Trust has only partial feedback-level evidence.
+V2 remains Draft/source-only. Audited role provisioning, live-provider analysis,
+isolated builds, deployment-grade reports, complete trust evidence, and production
+data protections remain outstanding.
 
 ## 1. Read This First
 
 The frontend is ready to explore, but the complete Veridica application is not finished.
-The next major task is to implement the Python backend and connect the existing screens
-to real accounts, database records, prototype artifacts, and AI workflows.
+Phase 7 includes owner-approved evidence-linked candidate creation and persisted
+decision reports. Phase 8 verified the local integration flow and restarted the
+stale worker with the current tasks. Remaining acceptance blockers are a verified
+real model provider, audited role provisioning, the reviewed prototype build
+boundary, and production data-protection controls. Generated source must not be
+executed, reviewed as a working prototype, or published before isolation exists.
+Idea APIs, version history, review cycles, assignments, sessions, feedback,
+requirement runs, prototype source records, feedback analysis, evolution proposals,
+and report snapshots are database-backed; local asset/source storage remains
+development-only.
 
 The architecture source of truth is [PROJECT_SPEC.md](PROJECT_SPEC.md).
 User-requested adjustments are recorded in [DECISIONS.md](DECISIONS.md).
 Previous verification results are in [SETUP_STATUS.md](SETUP_STATUS.md).
 This checklist does not replace those documents or claim unimplemented features are complete.
 
-**Free-local implementation update:** the [README](../README.md) now defines the
-active no-AWS stack: native PostgreSQL/pgvector, Redis, Celery, and Ollama. AI
-providers are isolated behind Python interfaces so a later deployment can add a
-managed provider without coupling domain logic to it. The first real slice now
-includes local authentication, owner authorization, persistent ideas, and immutable
-idea versions.
+**Free-local implementation update:** the [README](../README.md) defines the active
+no-AWS stack: native PostgreSQL/pgvector, Redis, Celery, and Ollama. Ollama is the
+default development provider; Gemini Developer API is available only as a backend
+development opt-in because the master blueprint prohibits Gemini as a production
+provider. Requirement outputs are typed and persisted, but actual provider output
+remains unverified until a real configured model call succeeds.
 
 ### Fixed Requirements
 
@@ -118,42 +132,40 @@ does not claim that the preview portal selector is authentication.
 
 | Current preview behavior | Production work still required |
 | --- | --- |
-| Portal selector chooses a sample role | Authentication and server-side RBAC |
-| Ideas and reviews live in localStorage | Authorized APIs and PostgreSQL persistence |
+| Offline preview selector chooses a sample role | A controlled admin bootstrap and audited role-change process |
+| Preview ideas and reviews live in localStorage | Persistent assets, prototype sessions, and later analysis workflows |
 | Upload selection keeps filenames | Validated uploads, S3 objects, and asset metadata |
-| Prototype screens are hand-authored samples | Python requirement analysis and isolated AI builder |
-| Publish and assignment actions are local | Audited lifecycle and assignment services |
-| Review interaction is browser-local | Authorized, version-linked review sessions |
-| Ratings produce simple local averages | Server-side analytics from persisted feedback |
-| Trust/quality views show pending states | Persisted quality evidence and deterministic trust |
-| Consensus shows raw support | Normalized trust-weighted consensus and confidence |
-| Evolution copies selected suggestions into a proposal | Python evolution workflow and a validated V2 artifact |
-| Report export summarizes local records | Persisted, evidence-linked decision intelligence |
+| Preview prototype screens include hand-authored samples | Persisted Requirement Agent and safe Builder source generation are implemented; an isolated build/preview boundary is still missing |
+| Offline preview publication, assignments, and reviews are browser-local | These fixtures remain separate from authenticated API records |
+| Authenticated reviewers submit structured feedback for an assigned immutable idea version | Real prototype access and human moderation; quality/NLP analysis and version-scoped analytics are implemented |
+| Ratings produce simple local averages | Broader prototype access and human moderation; version-scoped feedback analytics are implemented |
+| Authenticated trust/quality pages show persisted results and workflow states | Live provider verification and five unsupported trust factors remain unavailable |
+| Consensus shows raw support | Version-scoped weighted consensus and an explicitly uncalibrated uncertainty indicator are implemented |
+| Preview Evolution copies selected suggestions into a local proposal | Owner-scoped evidence-linked proposal, explicit approval, and immutable Draft candidate; isolated validated V2 is blocked |
+| Preview report export summarizes local records | Persisted owner-scoped decision report snapshot from versioned evidence; exports and report-diff verification remain |
 | Activity view shows local events | Workflow runs, live events, durable audit, and failure recovery |
 
-The backend now exposes health, authentication, and owner-scoped idea/version routes
-from [main.py](../backend/app/main.py). The initial business entities live in
-[entities.py](../backend/app/models/entities.py). Feedback, reviewer sessions, and
-the remaining analytical entities are still pending.
+The backend exposes health, authentication, owner-scoped idea/version routes,
+version publication, exact-version reviewer assignments and sessions, idempotent
+structured feedback, owner-authorized analysis routes, and narrow admin assignment
+operations from [main.py](../backend/app/main.py). Current business entities live
+in [entities.py](../backend/app/models/entities.py). Analysis runs and embedding
+records are persisted; standalone workflow events, generalized live progress,
+complete trust evidence and generalized workflow event entities remain pending.
 
 ## 4. Recommended Implementation Order
 
 | Order | Blueprint phase | Main deliverable | Depends on |
 | --- | --- | --- | --- |
-| 1 | P0 remaining | Working native/managed PostgreSQL, Redis, API, and Python worker | Environment access |
-| 2 | P1 | Reviewer/admin authorization, recovery, audit, and real session lifecycle | P0 and local auth slice |
-| 3 | P2 | Persistent idea assets, pagination, lifecycle, and upload policy | P1 and PostgreSQL |
-| 4 | P3 | Validated, persisted requirement specifications | P2 and Bedrock access |
-| 5 | P4 | One supported idea category produces an isolated, reviewable prototype | P3 and approved sandbox |
-| 6 | P5 | Publishing, assignments, sessions, and real prototype access | P4 |
-| 7 | P6 | Durable feedback and idempotent submission | P5 |
-| 8 | P7 | Reliable background workflows and live progress | P6; basic job support starts earlier |
-| 9 | P8 | Quality analysis and deterministic trust snapshots | P7 |
-| 10 | P9 | Embeddings, clusters, consensus, and priorities | P8 |
-| 11 | P10 | Evidence-based evolution and validated V2 | P9 |
-| 12 | P11 | Traceable decision reports and connected dashboards | P10 |
-| 13 | P12 | Approved AWS architecture, staging, and production deployment | Security gates and real E2E |
-| 14 | P13 | Reproducible research evaluation | Stable product and labeled datasets |
+| 1 | P1 | Real reviewer/admin authorization, ownership policy, and security acceptance tests — implemented; admin provisioning remains blocked | Verified P0 services and existing owner-auth slice |
+| 2 | P2 | Persistent idea lifecycle, pagination, version history, and local private assets — implemented; production scanning/storage remain blocked | P1 and PostgreSQL |
+| 3 | P3 | Validated, persisted Requirement Agent outputs, owner-scoped API, Celery execution, and connected UI — implemented; real model integration remains unverified | P2 and configured AI provider |
+| 4 | P4 | Safe source generation for one supported category is implemented; isolated execution, build, and reviewable preview remain blocked | P3; sandbox must be separately approved |
+| 5 | P5 | Prototype publishing/access; idea-version review publishing, assignments, sessions, and durable feedback foundation implemented | P4 isolated artifact for generated prototype access |
+| 6 | P6-P9 | Persisted quality/NLP analysis, partial deterministic trust, pgvector similarity, weighted consensus, and evidence-linked priorities — implemented; live model and unsupported trust factors remain unverified | Durable feedback and configured worker |
+| 7 | P10-P11 | Owner-approved evidence-linked evolution candidates and persisted decision-report snapshots — implemented; validated working V2 and report export/reproduction hardening remain blocked | P6-P9; isolated prototype build boundary |
+| 8 | P12 | Separately approved deployment architecture and staging/production | Security gates and real E2E |
+| 9 | P13 | Reproducible research evaluation | Stable product and labeled datasets |
 
 Connect each frontend feature as its backend phase becomes usable. Do not wait until
 all backend modules exist, and do not mark a phase done merely because its screen exists.
@@ -161,19 +173,25 @@ Bedrock and S3 access may be needed before the full AWS deployment phase.
 
 ## 5. P0: Finish the Python Development Foundation
 
+**Local acceptance status (2026-10-23): passed.** PostgreSQL/pgvector, Redis,
+migrations, FastAPI readiness, and a real Celery task were verified using the
+existing local services. Backend unit/integration tests, Ruff, frontend tests,
+lint, typecheck, build, and browser acceptance tests passed. This does not complete
+production hardening or verify service-restart persistence.
+
 ### Environment and Services
 
 - [x] Recheck Python package installation and network/DNS access; installation succeeded on 2026-09-30.
 - [x] Install backend development dependencies into the existing virtual environment.
-- [ ] Provision PostgreSQL with a compatible pgvector extension, natively or as a managed service.
-- [ ] Provision Redis natively under a suitable Linux environment, or use managed Redis.
-- [ ] Configure development DATABASE_URL and REDIS_URL without committing credentials.
+- [x] Verify the existing local PostgreSQL service and usable pgvector extension; no database or cluster was recreated.
+- [x] Verify the existing local Redis service.
+- [x] Configure development DATABASE_URL and REDIS_URL in ignored local `.env`; keep secrets untracked.
 - [ ] Replace sample credentials for any shared or remotely reachable environment.
-- [ ] Run Alembic migrations against a real development database.
+- [x] Verify Alembic revision `0003` on the configured development database and run `upgrade head` without resetting data.
 - [x] Start FastAPI directly with Python/Uvicorn.
-- [ ] Run Celery under Linux/WSL or suitable AWS compute; do not treat native Windows Celery as the production target.
+- [x] Run Celery under the Linux Codespace environment.
 - [x] Verify native API liveness and honest unavailable-dependency readiness responses.
-- [ ] Verify readiness with real PostgreSQL/Redis and actual worker task execution.
+- [x] Verify readiness with real PostgreSQL/Redis and execute the live Celery integration task.
 - [ ] Add reproducible Python dependency locking and review dependency vulnerabilities.
 - [ ] Separate development, test, staging, and production configuration.
 - [x] Add startup validation for APP_ENV, the synchronous database driver, explicit CORS origins, non-sample production database credentials, and Redis TLS in production.
@@ -182,26 +200,32 @@ Bedrock and S3 access may be needed before the full AWS deployment phase.
 
 ### Exit Criteria
 
-- [ ] A real database connection succeeds and pgvector is available.
-- [ ] Redis responds and a queued task is executed by a separate Python worker.
-- [ ] Backend unit and integration tests pass against the intended service versions.
+- [x] A real database connection succeeds and pgvector is available and usable.
+- [x] Redis responds and a queued task is executed by a separate Python worker.
+- [x] Backend unit and integration tests pass against the available service versions.
 - [ ] Services can restart without losing database records.
-- [ ] No Docker command is needed for the selected development setup.
+- [x] No Docker command is needed for the selected development setup.
 
 ## 6. P1: Authentication and Real Portals
 
+**Implementation status (2026-10-23):** Backend ownership checks, reviewer
+assignment-scoped version access, persisted review submission, and restricted admin
+assignment operations are implemented and tested. Authenticated owner/reviewer/admin
+screens consume server-backed results. Admin bootstrap/audited role changes and
+production account lifecycle flows remain blocked.
+
 ### Identity and Authorization
 
-- [ ] Decide and document user/organization ownership boundaries before writing authorization rules.
+- [x] Decide and document current owner/resource boundaries; multi-organization access remains future scope.
 - [x] Add the initial user model, migration, schema, and session boundary.
 - [x] Implement registration, login, and scrypt password hashing for local development.
 - [x] Document signed bearer token expiry and in-memory frontend token handling.
 - [ ] Implement account verification and recovery flows needed for the launch scope.
-- [ ] Prevent public registration from granting admin privileges.
+- [x] Prevent public registration from granting elevated privileges; unexpected role input is rejected.
 - [x] Implement server-side owner/resource authorization for the idea endpoints.
 - [ ] Enforce organization/resource ownership on every protected endpoint.
-- [ ] Limit reviewer access to assigned projects, permitted prototype versions, and their own review records.
-- [ ] Require an audited process for administrative role changes and overrides.
+- [x] Limit reviewer access to exact active assignments and version-bound structured reviews.
+- [ ] Provide a reviewed, audited operator process for provisioning reviewer/admin roles.
 - [ ] Add authentication rate limits and appropriate handling of repeated failed attempts.
 - [ ] Record security events without logging passwords or tokens.
 
@@ -210,7 +234,7 @@ Bedrock and S3 access may be needed before the full AWS deployment phase.
 - [x] Connect sign-in/register forms to Python APIs.
 - [x] Show API identity and preserve a separate offline preview mode.
 - [ ] Add session loading, expired-session, forbidden, and signed-out states.
-- [ ] Add route guards for usability, while keeping the server as the security boundary.
+- [x] Add authenticated role-aware route guards for usability, while keeping the server as the security boundary.
 - [x] Add in-memory frontend logout; server token revocation remains pending.
 - [x] Keep credentials and access tokens out of localStorage and application logs.
 
@@ -225,56 +249,61 @@ cross-user and cross-project requests fail even when sent directly to the API.
 - [ ] Store title, problem, target users, solution, features, constraints, category, owner, and timestamps.
 - [ ] Define server-side request limits and Pydantic validation.
 - [x] Implement authorized idea creation, listing, detail retrieval, and new-version creation.
-- [ ] Specify which draft fields may change and which operations create a new version.
-- [ ] Preserve the original V1 snapshot; never mutate a version that has entered review.
+- [x] Specify that content edits create a new version with expected-version concurrency checks and a change summary.
+- [x] Preserve immutable version snapshots with database-enforced update/delete protection and source lineage.
 - [x] Add row locking and conflict handling for concurrent version creation.
-- [ ] Make lifecycle transitions explicit and auditable.
-- [ ] Add pagination, filtering, and stable ordering for growing workspaces.
-- [ ] Define archiving/deletion and evidence-retention behavior before exposing destructive controls.
+- [x] Make supported Draft/Archived lifecycle transitions explicit; block archiving with active reviewer assignments.
+- [x] Add pagination, status/category/text filtering, and stable ordering.
+- [x] Define non-destructive archiving and restoration; hard deletion is not exposed.
+- [x] Store title, problem, target users, solution, features, constraints, category, owner, and timestamps with server validation.
 
 ### Real File Handling
 
 - [ ] Configure private S3 upload storage and least-privilege permissions.
-- [ ] Validate supported file types, file signatures, sizes, filenames, and counts on the server.
+- [x] Validate supported file types, file signatures, sizes, and filenames on the server; uploads are limited to one file per request and capped at 10 MiB.
 - [ ] Add malware scanning/quarantine or an equivalent reviewed file-safety policy.
-- [ ] Use short-lived signed upload/download access where appropriate.
-- [ ] Store object metadata, ownership, processing status, and checksums in PostgreSQL.
-- [ ] Handle interrupted uploads, duplicate requests, and orphaned objects.
+- [x] Authorize private downloads through the authenticated API; files are not exposed through public URLs.
+- [x] Store per-version asset metadata and checksums in PostgreSQL. Local file storage uses opaque keys and restrictive permissions.
+- [ ] Add malware scanning/quarantine, production S3 storage, orphan cleanup, upload idempotency, and durable retry handling.
 - [ ] Extract document/image content using an approved ingestion path before requirement analysis.
-- [ ] Replace filename-only preview behavior with progress, failure, retry, and removal states.
+- [x] Connect authenticated uploads with busy/error states and retry by re-uploading from idea details; preview mode remains filename-only.
 
-**Acceptance:** An owner can create an idea, upload a supported reference, refresh or
-sign in on another device, and retrieve the same authorized V1 and asset records.
+**Local acceptance verified:** an owner can create an idea, upload a supported reference,
+refresh or use another authenticated session, and retrieve authorized version/asset
+records from PostgreSQL and local private storage. Production object storage and
+malware-safety acceptance remain blocked.
 
 ## 8. P3: Python Requirement Agent
 
-- [ ] Configure approved Bedrock models, AWS region, permissions, and invocation limits.
-- [ ] Add the Python Bedrock client with bounded timeouts and retry handling.
-- [ ] Define a typed requirement-output schema matching the blueprint.
-- [ ] Include problem, users, journeys, requirements, features, screens, navigation, scope, constraints, and assumptions.
+- [ ] Configure the approved production Bedrock model, region, permissions, and invocation limits.
+- [x] Keep provider calls behind a Python adapter with bounded timeouts and classified retry handling (local Ollama default; optional Gemini adapter is development-only).
+- [x] Define a typed requirement-output schema for problem, target users, user journeys, core features, constraints, assumptions, acceptance criteria, and open questions.
 - [ ] Treat uploaded text and images as untrusted input, not agent instructions.
 - [ ] Separate system instructions, user content, and retrieved material in prompts.
-- [ ] Validate structured output and reject malformed or unsupported specifications.
-- [ ] Persist requirement_specs instead of storing the result only in worker memory.
-- [ ] Persist workflow_run_id, model_version, prompt_version, source idea version, status, duration, and errors.
-- [ ] Add versioned prompt templates and tests for representative idea categories.
-- [ ] Run analysis asynchronously with visible status and retry controls.
-- [ ] Connect the Requirements tab to the actual result and its provenance.
+- [x] Validate structured output and reject malformed or unsupported specifications.
+- [x] Persist validated results and analysis-run status in PostgreSQL rather than worker memory alone.
+- [x] Persist workflow_run_id, provider/model, prompt_version, source idea version, status, timestamps, validation state, attempts, and errors.
+- [x] Add a versioned prompt and deterministic tests for schema validation, failures, authorization, retries, and persistence.
+- [x] Run analysis asynchronously through Celery with visible status and retry states.
+- [x] Connect the Requirements tab to persisted results and provenance.
 - [ ] Keep owner-written requirements visibly distinct from agent-generated requirements.
 
-**Acceptance:** A submitted idea produces a schema-valid, persisted requirement spec
-through a real Python/Bedrock invocation; failures are recorded and recoverable.
+**Local implementation:** The workflow, APIs, persistence, and frontend integration
+are implemented. Mocked provider tests validate the workflow without a paid call.
+Production Bedrock integration, an actual live model invocation, and content
+extraction from uploaded assets remain unverified or incomplete; do not claim that a
+mocked output proves real-provider acceptance.
 
 ## 9. P4: Python AI Builder and Isolated Prototype Generation
 
 ### Controlled MVP Scope
 
-- [ ] Start with one supported category, such as the placement-assistant example.
-- [ ] Define allowed templates, components, packages, interactions, and integration placeholders.
-- [ ] Implement Python planning/generation modules around the validated requirement spec.
-- [ ] Generate screen specs, component plans, manifests, and React/TypeScript source.
-- [ ] Store feature coverage and known limitations alongside generated artifacts.
-- [ ] Validate filenames and paths; reject traversal, arbitrary shell commands, secrets, and unapproved dependencies.
+- [x] Start with one supported category: education placement preparation.
+- [x] Define one fixed template, component plan, React/TypeScript/Vite dependency set, scripts, and local-only interactions.
+- [x] Implement deterministic Python generation around a completed, validated Requirement Agent result linked to an immutable source version.
+- [x] Generate typed screen/component plans, a manifest, and separate React/TypeScript/JSON/CSS source.
+- [x] Store explicit features, requirements provenance, limitations, source hashes, and source metadata.
+- [x] Validate file paths, traversal, source capabilities/imports, scripts, dependencies, required files, and source size.
 
 ### Isolation: Required Before Any Generated Build Runs
 
@@ -287,29 +316,36 @@ through a real Python/Bedrock invocation; failures are recorded and recoverable.
 - [ ] Use nonprivileged execution and clean up the environment after each build.
 - [ ] Never run generated server code or user-provided commands in FastAPI.
 
+**Codespaces status:** No approved disposable isolation boundary is available. The
+implemented Builder stops at private source generation and static validation. It
+does not run Node/npm/Vite, does not claim source is a working prototype, and cannot
+test real build timeouts or resource limits until a sandbox exists.
+
 ### Build and Delivery
 
 - [ ] Run dependency validation, lint, typecheck, production build, and supported interaction checks.
 - [ ] Capture build/test output, errors, timing, and retry count.
-- [ ] Persist prototypes, prototype_builds, and prototype_events.
+- [x] Persist prototype build records with immutable idea and requirement source IDs, template/workflow versions, validation results, source metadata, and blocked build/publish states.
 - [ ] Enforce DRAFT -> BUILDING -> VALIDATING -> READY or FAILED transitions.
 - [ ] Publish only validated, versioned static artifacts to S3.
 - [ ] Serve previews on an isolated origin with an appropriate CSP and access policy.
 - [ ] Add authorized preview URLs and expiration/access behavior.
-- [ ] Connect live build status, logs, failure handling, and artifact launch to the frontend.
+- [x] Connect generated-source status, validation, failure, limitation, and safe source inspection to the authenticated owner UI.
 - [ ] Never show a successful build or preview URL unless the real artifact exists.
 
-**Acceptance:** One supported idea produces a usable multi-screen prototype from a
-real requirement spec, passes validation in isolation, and can be launched by an
-authorized user. Unsupported ideas receive an honest unsupported/failure state.
+**Acceptance still blocked:** The owner can generate an immutable-version-linked
+source artifact and inspect static validation results. It is not a built prototype;
+an isolated build, browser interaction test, private preview, and reviewer launch
+remain unimplemented until the required boundary is provided. Unsupported ideas
+receive an honest persisted unsupported state.
 
 ## 10. P5: Publishing, Assignments, and Review Sessions
 
 - [ ] Implement server-side project publishing only for a validated prototype.
 - [ ] Freeze the specific idea/prototype version when its review cycle opens.
-- [ ] Persist reviewer_profiles, review_assignments, and review_sessions.
-- [ ] Implement admin assignments with duplicate prevention and audit records.
-- [ ] Expose an authorized reviewer project queue.
+- [ ] Persist reviewer profiles and prototype-bound review sessions.
+- [x] Implement version-specific admin assignments with duplicate prevention and actor/timestamp fields.
+- [x] Expose the reviewer queue for active assignments and exact assigned versions.
 - [ ] Start a review session tied to reviewer, assignment, idea version, and prototype version.
 - [ ] Record permitted session activity and journey progress under a documented privacy policy.
 - [ ] Define abandonment, timeout, resume, completion, and closed-cycle behavior.
@@ -320,29 +356,25 @@ authorized user. Unsupported ideas receive an honest unsupported/failure state.
 **Acceptance:** An assigned reviewer in a separate authenticated session can launch
 the correct immutable prototype. An unassigned user cannot obtain access by guessing IDs.
 
-## 11. P6: Real Feedback and Durable Submission
+## 11. P6: Real Feedback and Durable Submission — implemented
 
-- [ ] Create the feedback table with actor, session, assignment, idea, and prototype-version references.
-- [ ] Persist rating, usability, usefulness, completeness, feasibility, would_use, feedback_text, strengths, concerns, improvements, and usage context.
-- [ ] Enforce rating ranges, content limits, ownership, session validity, and open-cycle rules in Python.
-- [ ] Define whether a reviewer may submit once or revise feedback; preserve an audit trail either way.
-- [ ] Use an idempotency key with a database constraint and a defined request-replay contract.
-- [ ] Commit feedback to PostgreSQL before enqueueing any asynchronous analysis.
-- [ ] Implement a transactional outbox or equivalent durable delivery design so a queue failure after commit does not lose analysis work.
-- [ ] Handle duplicate delivery and replay safely in workers.
-- [ ] Return a real feedback ID and receipt status to the frontend.
-- [ ] Preserve user-entered form data on errors and prevent accidental double submission.
-- [ ] Do not silently turn browser sample feedback into authenticated production evidence.
+- [x] Create feedback records with actor, session, assignment, idea, and exact-version references.
+- [x] Persist required ratings, would-use response, bounded text, strengths, concerns, improvements, and usage context.
+- [x] Enforce rating ranges, content limits, ownership, session validity, and open-cycle rules in Python.
+- [x] Define idempotent submission and same-key replay behavior.
+- [x] Commit feedback and outbox records before queue dispatch; retain a retry path after queue failure.
+- [x] Return persisted feedback IDs/receipts and preserve submission/retry states in the UI.
+- [x] Keep browser preview samples separate from authenticated production evidence.
 
 **Acceptance:** Double-clicking Submit or retrying after a network interruption does
 not create duplicate feedback. A queue outage does not lose committed feedback or
 permanently prevent its later analysis.
 
-## 12. P7: Python Workflows, Celery, and Live Updates
+## 12. P7: Python Workflows, Celery, and Live Updates — partially implemented
 
-- [ ] Implement Python LangGraph state schemas and explicit workflow nodes.
-- [ ] Build requirement/build and feedback-analysis flows incrementally.
-- [ ] Persist workflow_runs and workflow_events in PostgreSQL.
+- [x] Implement typed LangGraph nodes for feedback quality, NLP analysis, and prioritization.
+- [x] Run requirement analysis and feedback analysis through Celery; persist status and provenance.
+- [ ] Generalize all runs into shared `workflow_runs` and `workflow_events` records.
 - [ ] Define durable checkpoints and restart/resume behavior.
 - [ ] Add bounded retries, retry backoff, failure classification, and manual retry controls.
 - [ ] Make every side-effecting node idempotent under Celery redelivery.
@@ -358,16 +390,16 @@ permanently prevent its later analysis.
 **Acceptance:** A submitted review produces visible live status transitions. Killing
 and restarting a worker does not lose the review or create duplicate analytical results.
 
-## 13. P8: Feedback Quality and Deterministic Trust
+## 13. P8: Feedback Quality and Deterministic Trust — implemented with evidence limits
 
 ### Python Quality Agent
 
-- [ ] Define relevance, originality, constructiveness, consistency, spam risk, bias risk, authenticity indicator, and confidence schemas.
-- [ ] Ground indicators in feedback, prototype context, and permitted reviewer history.
-- [ ] Persist analysis evidence and model/prompt/workflow provenance.
+- [x] Define typed relevance, originality, constructiveness, consistency, spam risk, authenticity-indicator, confidence, and explanation fields.
+- [x] Ground analysis in persisted source feedback and exact-version context; reviewer history is not yet available.
+- [x] Persist evidence IDs and model/prompt/workflow provenance.
 - [ ] Add handling for empty, irrelevant, duplicate, adversarial, and ambiguous feedback.
 - [ ] Provide appropriate human moderation/review paths.
-- [ ] Never label a person or review as proven fake based on AI output.
+- [x] Never label a person or review as proven fake based on AI output.
 
 ### Deterministic Trust Engine
 
@@ -382,12 +414,11 @@ Trust = 0.30 * Review Quality
       + 0.10 * Community Validation
 ```
 
-- [ ] Normalize each factor to [0, 1] and validate numerical inputs.
-- [ ] Define where every factor comes from and what evidence is required.
-- [ ] Document cold-start and missing-factor behavior; do not invent historical accuracy for a new reviewer.
+- [x] Normalize supported factors to [0, 1] and validate numerical inputs.
+- [x] Document evidence sources and explicitly leave unsupported factors missing; no historical accuracy is invented.
 - [ ] Distinguish measured, inferred, unavailable, and overridden factors.
-- [ ] Keep the formula deterministic; the LLM must not choose the final numerical score.
-- [ ] Persist trust_snapshots with score, factor_json, formula_version, source evidence, and timestamps.
+- [x] Keep the formula deterministic; the LLM does not choose the final numerical score.
+- [ ] Persist independently versioned reviewer `trust_snapshots`; current persisted score is feedback-level and partial.
 - [ ] Version formula changes and retain old snapshots for reproducibility.
 - [ ] Prevent reviewers and owners from changing trust scores.
 - [ ] Audit any approved administrative override.
@@ -396,15 +427,15 @@ Trust = 0.30 * Review Quality
 **Acceptance:** The same validated factor inputs produce the same score. Tests cover
 boundaries, missing evidence, formula versions, and unauthorized modifications.
 
-## 14. P9: Embeddings, Clustering, Consensus, and Priorities
+## 14. P9: Embeddings, Clustering, Consensus, and Priorities — implemented with limits
 
 ### Semantic Analysis
 
-- [ ] Generate embeddings with the approved Bedrock embedding model.
-- [ ] Store vectors and source metadata in feedback_embeddings using pgvector.
-- [ ] Fix and validate embedding dimensions and model/version compatibility.
-- [ ] Add cosine-similarity queries, appropriate indexes, and tenant/project isolation.
-- [ ] Implement near-duplicate detection, topic grouping, sentiment, and issue categories.
+- [ ] Verify live embeddings with the configured local Ollama model; tests use deterministic vectors.
+- [x] Store vectors and source metadata in feedback embeddings using pgvector.
+- [x] Fix and validate embedding dimensions and model/version compatibility.
+- [x] Query cosine similarity for same-version evidence; index/performance evaluation remains.
+- [x] Generate version-scoped themes and likely-similar feedback groups; these are not proof of duplication.
 - [ ] Define clustering thresholds and minimum-data behavior using evaluation evidence.
 - [ ] Retain supporting feedback IDs for every theme and cluster.
 - [ ] Show insufficient-data and uncertainty states rather than forcing clusters.
@@ -416,56 +447,59 @@ Feedback weight = Trust score * Authenticity score * Relevance score
 Normalized weight = Feedback weight / Sum of eligible feedback weights
 ```
 
-- [ ] Define how quality indicators map to bounded aggregation inputs.
-- [ ] Compute raw support and trust-weighted support separately.
-- [ ] Handle missing factors, empty feedback, and zero total weight explicitly.
-- [ ] Define confidence and coverage with a documented, testable method.
-- [ ] Persist consensus_results with evidence IDs, source versions, formula/config version, and workflow metadata.
+- [x] Define how quality indicators map to bounded aggregation inputs.
+- [x] Compute raw support and trust-weighted support separately.
+- [x] Handle missing factors, empty feedback, and zero total weight explicitly.
+- [x] Define and test confidence/coverage as an uncalibrated indicator.
+- [x] Persist consensus, evidence IDs, source versions, formula/config version, and workflow metadata in analysis-run output.
 - [ ] Keep disagreement and minority concerns visible.
 
 ### Prioritization
 
-- [ ] Define the ranking policy for P1/P2/P3 feature improvements.
-- [ ] Combine support, trust coverage, impact, feasibility, and constraints according to documented rules.
+- [x] Define deterministic ordinal ranking for P1/P2/P3 feature improvements.
+- [x] Combine evidence-linked support with qualitative impact/feasibility; mark missing inputs unknown.
 - [ ] Keep agent rationale separate from deterministic numeric calculations.
 - [ ] Persist feature_priorities, rank, rationale, evidence IDs, and provenance.
 - [ ] Connect semantic themes, trust distribution, raw/weighted charts, and the feature-priority matrix.
 
 **Acceptance:** Stored evidence reproduces reported aggregates. A zero-weight dataset
-cannot produce a misleading confidence claim or a divide-by-zero failure.
+returns null weighted support and cannot produce a misleading confidence claim or
+divide-by-zero failure. Live provider inference and full trust-factor coverage are
+not acceptance claims for the current implementation.
 
-## 15. P10: Python Evolution Agent and Real V2
+## 15. P10: Evidence-linked Evolution — partially implemented
 
-- [ ] Make evolution an explicit authorized action, not an automatic overwrite.
-- [ ] Load the immutable source version, analyzed feedback, priorities, and consensus.
-- [ ] Generate a typed change set and new requirements with per-change evidence IDs.
-- [ ] Persist evolution_results, source/target versions, rationale, assumptions, and AI provenance.
-- [ ] Reject unsupported or evidence-free changes according to the approved policy.
-- [ ] Create a separate target-version candidate and use the isolated builder to produce V2.
-- [ ] Validate the new artifact before exposing it as a ready V2 prototype.
-- [ ] Preserve V1 and its review evidence if generation, building, or validation fails.
-- [ ] Define retry/resume behavior without duplicate versions.
-- [ ] Connect the comparison screen, timeline, evidence links, V1 launch, and V2 launch.
-- [ ] Distinguish proposed, building, failed, and validated versions in the UI.
+- [x] Make evolution owner-authorized and explicitly approved, never an automatic overwrite.
+- [x] Load immutable source-version requirements, validated feedback analysis, trust/consensus and priorities.
+- [x] Persist typed suggestions with source feedback IDs, expected benefit, assumptions, risks, validation criteria and provenance.
+- [x] Reject stale source versions, invalid ranks, missing evidence and unsupported Builder categories.
+- [x] Create a separate immutable target-version candidate and preserve the original version/reviews.
+- [x] Invoke the existing source-only Builder for supported approved candidates and label build/publish status honestly.
+- [ ] Obtain a reviewed isolated build boundary, build/test V2 artifact, and validate before marking a prototype ready.
+- [ ] Add a dedicated model invocation for new Evolution reasoning; current agent shapes the persisted Phase 6 prioritized suggestions and does not claim a separate LLM call.
+- [ ] Add a rich V1/V2 comparison and evidence navigation for authenticated records.
+- [ ] Add recovery/retry controls for candidate or source-generation failures.
 
-**Acceptance:** A real evidence-backed V2 prototype exists and demonstrates the
-accepted changes. V1 remains accessible and unchanged throughout the process.
+**Acceptance status:** V1 remains immutable and approved changes are linked to cited
+feedback. A validated working V2 prototype is blocked by the unavailable isolation
+boundary and is not claimed.
 
-## 16. P11: Decision Intelligence and Real Dashboard Data
+## 16. P11: Decision Intelligence — partially implemented
 
-- [ ] Implement the Python Decision Agent using persisted evidence, not unrelated assumptions.
-- [ ] Include validation summary, strengths, concerns, consensus, confidence, priorities, evolution, and next actions.
-- [ ] Persist reports and provenance; place downloadable artifacts in the approved S3 location.
-- [ ] Make each important statement traceable to authorized feedback/analysis/version records.
-- [ ] Add report loading, pending, failure, stale-data, download, and print states.
-- [ ] Replace preview counts and charts with typed analytics API responses.
-- [ ] Show raw versus weighted results and analyzed versus unanalyzed coverage.
-- [ ] Define cache invalidation and event-driven dashboard refresh behavior.
-- [ ] Keep uncertainty and insufficient evidence visible in recommendations.
-- [ ] Never show simulated evaluation metrics as measured KPIs.
+- [x] Build an owner-authorized structured report from persisted versioned evidence.
+- [x] Include requirements, prototype/build status, sample size/coverage, quality findings, themes, trust, consensus, priorities, evolution, risks and next steps.
+- [x] Store source version, requirement and feedback analysis run IDs, proposal ID, and source feedback IDs in immutable report snapshots.
+- [x] Distinguish observed inputs, model interpretations, deterministic calculations, assumptions, recommendations and missing evidence.
+- [x] Connect authenticated report UI to saved report snapshots; keep preview report fixtures separate.
+- [ ] Add stable report-input digest/reproduction verifier and downloadable signed/export artifacts.
+- [ ] Add direct evidence links, report diff/staleness indication, and report regeneration comparison.
+- [ ] Complete the dashboard charts using versioned persisted API data rather than browser preview state.
+- [x] Keep uncertainty visible and prohibit fabricated outcome metrics.
 
-**Acceptance:** The owner can inspect a report, follow its evidence links, reproduce
-its numerical aggregates, and see exactly which idea and prototype versions it covers.
+**Acceptance status:** Owners can retrieve persisted snapshots tied to exact source
+records; their report JSON and formulas do not claim business success. Signed
+exports, byte-for-byte re-rendering guarantees, and isolated V2 evidence remain
+future hardening.
 
 ## 17. Database Work by Phase
 
@@ -475,10 +509,11 @@ migrations, repositories, and database tests with the phase that uses them.
 | Entity group | Phase | Important constraints |
 | --- | --- | --- |
 | users, organizations | P1 | Unique identities, roles, ownership/tenant isolation |
-| ideas, idea_versions, idea_assets | P2 | Version uniqueness, immutable snapshots, authorized assets |
+| reviewer_assignments, idea_reviews | P1 | Exact immutable-version scope, role authorization, one review per assignment |
+| ideas, idea_versions, idea_assets, idea_status_events | P2 | Version uniqueness, immutable snapshots, authorized assets, append-only lifecycle audit |
 | requirement_specs | P3 | Source version and workflow/model/prompt provenance |
 | prototypes, prototype_builds, prototype_events | P4 | Versioned artifacts, validated transitions, logs |
-| reviewer_profiles, review_assignments, review_sessions | P5 | Assignment uniqueness and version/session integrity |
+| reviewer_profiles, review_sessions | P5 | Prototype/version/session integrity; assignment rows are already introduced in P1 |
 | feedback | P6 | Idempotency, ownership, session and version links |
 | workflow_runs, workflow_events | P3-P7 | Durable status, resume/retry, event ordering |
 | feedback_analysis, trust_snapshots | P8 | Evidence, bounded inputs, formula/provenance history |
@@ -499,7 +534,8 @@ authorization, validation, and consistent error handling.
 | API group | Required endpoint surface | Frontend connection |
 | --- | --- | --- |
 | Auth | `POST /api/v1/auth/register`, `POST /api/v1/auth/login` | Sign-in, registration, session identity |
-| Ideas | `POST /api/v1/ideas`, `GET/PUT /api/v1/ideas/{id}` | Submission and version-aware details |
+| Ideas | `POST/GET /api/v1/ideas`, `GET/PATCH /api/v1/ideas/{id}`, `POST /api/v1/ideas/{id}/versions` | Persistent submission/list/detail, archive/restore, and immutable version history |
+| Idea assets | `POST /api/v1/ideas/{id}/versions/{version}/assets`, authorized `GET` download | Private upload, metadata, and scoped download |
 | Build | `POST /api/v1/ideas/{id}/build` | Start generation and monitor progress |
 | Prototype | `GET /api/v1/ideas/{id}/prototype`, `GET /api/v1/ideas/{id}/prototype/preview` | Manifest, status and authorized artifact launch |
 | Publish | `POST /api/v1/projects/{id}/publish` | Open a valid review cycle |
@@ -509,9 +545,9 @@ authorization, validation, and consistent error handling.
 | Analytics | `GET /api/v1/ideas/{id}/analytics` | Real metrics and chart data |
 | Trust | `GET /api/v1/ideas/{id}/trust` | Factor history and quality context |
 | Consensus | `GET /api/v1/ideas/{id}/consensus` | Raw/weighted results and evidence |
-| Evolution | `GET /api/v1/ideas/{id}/evolution`, `POST /api/v1/ideas/{id}/evolve` | Proposals, validated versions and comparison |
+| Evolution | `POST/GET /api/v1/ideas/{id}/versions/{version}/evolution`, `POST .../evolution/{proposal_id}/approve` | Evidence-linked suggestions, explicit owner approval, Draft candidate; working build blocked |
 | Workflows | `GET /api/v1/workflows/{run_id}` | Run state, failures and recovery |
-| Reports | `GET /api/v1/reports/{idea_id}` | Decision report and artifact access |
+| Reports | `POST/GET /api/v1/ideas/{id}/versions/{version}/decision-reports` | Persisted version-scoped report snapshots; file export not implemented |
 | Events | `WS /ws/ideas/{id}` | Authorized live updates |
 
 - [ ] Resolve ambiguous resource IDs, pagination, list/search endpoints, upload endpoints, and auth lifecycle endpoints in the API specification before coding them.
@@ -604,6 +640,14 @@ events, monitoring, backup, and rollback all work on the approved AWS topology.
 
 ## 21. Testing and CI Work Still Required
 
+**Phase 8 verification (2026-10-23):** the enabled backend suite passed against
+PostgreSQL/pgvector/Redis/Celery, including one full API/database workflow test
+using deterministic requirement, quality/NLP, and embedding test doubles. The real
+worker ping and review outbox handoff passed; the active worker was restarted and
+task registrations were inspected. Frontend unit, lint, typecheck, build, and
+preview Playwright suites passed. This does not verify live model inference,
+authenticated browser E2E, generated-code execution, or production deployment.
+
 ### Backend
 
 - [ ] Unit tests for services, validation, deterministic trust, and consensus edge cases.
@@ -640,6 +684,9 @@ events, monitoring, backup, and rollback all work on the approved AWS topology.
 
 Use the AI College Placement Assistant example with actual persisted data and real
 provider calls. The current hand-authored Campus Compass preview is not a substitute.
+The Phase 8 rollback-isolated acceptance test covers the persisted API journey using
+deterministic providers; it does not satisfy the real-provider or isolated-prototype
+requirements below.
 
 1. [ ] Register/login as an idea owner.
 2. [ ] Submit the problem, target users, solution, features, constraints, and an optional reference asset.
@@ -718,14 +765,17 @@ with evidence after each phase passes its acceptance tests.
 
 ## 26. Immediate Next Work Session
 
-Focus on the smallest real vertical slice before adding more AI modules:
+Continue with the remaining release blockers rather than restarting Phase 1:
 
-1. Select and provision native/managed PostgreSQL and Redis endpoints; Python dependencies are now installed.
-2. Run the existing migrations and health/worker integration checks without Docker.
-3. Specify user/organization ownership and implement the first auth models and endpoints.
-4. Connect the existing sign-in screen to the real Python API.
-5. Test owner/reviewer/admin authorization before moving to persistent idea submission.
+1. Add a reviewed, auditable operator flow for provisioning reviewer/admin roles.
+2. Configure and verify a real development AI provider; keep live-provider tests
+   distinct from deterministic test doubles.
+3. Supply and review a disposable, restricted prototype build/preview boundary.
+4. Resolve Tailwind 3 development dependency advisories and add a backend
+   vulnerability-database scan.
+5. Complete authenticated browser E2E, multi-review confidence/evidence coverage,
+   production storage/privacy controls, and recovery testing.
 
-Do not provision paid AWS resources, choose a replacement compute architecture, or
-execute generated code merely because it appears on this checklist. Those actions
-require the relevant environment, security design, and deployment decisions first.
+Do not provision paid cloud resources, claim 24/7 availability, release production
+traffic, or execute generated code until the corresponding cost, security, privacy,
+and isolation gates are approved and verified.

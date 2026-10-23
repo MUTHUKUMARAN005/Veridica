@@ -38,10 +38,19 @@ def create_access_token(subject: str, role: str, secret: str, minutes: int) -> s
 def decode_access_token(token: str, secret: str) -> dict[str, object] | None:
     try:
         header, payload, signature = token.split(".")
+        decoded_header = json.loads(base64.urlsafe_b64decode(header + "==="))
+        if not isinstance(decoded_header, dict) or decoded_header.get("alg") != "HS256":
+            return None
         if not hmac.compare_digest(signature, _sign(f"{header}.{payload}", secret)):
             return None
         data = json.loads(base64.urlsafe_b64decode(payload + "==="))
-        if int(data["exp"]) < int(time.time()):
+        if (
+            not isinstance(data, dict)
+            or not isinstance(data.get("sub"), str)
+            or not data["sub"]
+            or not isinstance(data.get("exp"), int)
+            or data["exp"] <= int(time.time())
+        ):
             return None
         return data
     except (ValueError, KeyError, TypeError, binascii.Error, json.JSONDecodeError):
