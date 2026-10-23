@@ -602,13 +602,18 @@ For the phase-by-phase implementation checklist and acceptance criteria, see
   doubles; no real Ollama/Gemini model inference is claimed.
 - Phase 8 final verification: backend suite with `RUN_INTEGRATION=1`: `80 passed`;
   Ruff passed. Frontend unit tests: `16 passed`; Oxlint, TypeScript typecheck,
-  production build, and Playwright: `14 passed`. PostgreSQL 16, pgvector 0.6.0,
+  production build, and preview Playwright: `14 passed`. The separate authenticated
+  browser/API Playwright journey passed (`1 passed`) against PostgreSQL. PostgreSQL
+  16, pgvector 0.6.0,
   Redis, migration head `0010`, and a live worker ping were verified. The current
   worker registers health, feedback outbox, feedback analysis, and requirements
   tasks.
-- Playwright currently covers the preview/offline UX; it is not browser E2E against
-  authenticated PostgreSQL API mode. The Phase 8 persisted journey is exercised
-  through FastAPI in a PostgreSQL integration test.
+- The authenticated browser/API test registers an owner, creates an idea through
+  the UI, reloads, signs in again, and retrieves the same idea from PostgreSQL. Its
+  test-only API process wraps requests in a PostgreSQL transaction and rolls back
+  test records at shutdown. Reviewer/admin browser workflows and the complete
+  browser-driven review/analysis journey remain uncovered; the broader Phase 8
+  persisted workflow is exercised through FastAPI integration tests.
 - Phase 7 does not add an independent model call. The Evolution Agent validates and
   shapes the persisted, model-generated Phase 6 priorities into evidence-linked
   suggestions; the owner explicitly approves selected changes. The Decision
@@ -670,7 +675,7 @@ provider-generated analytics or measured production KPIs are claimed.
 | Real persistent API | PostgreSQL with pgvector | Available locally; migrations and readiness verified |
 | Celery jobs and live workflows | Redis plus a Celery worker | Current task registration, health ping, and outbox handoff verified; live model execution remains unverified |
 | Local requirement analysis/embeddings | Ollama plus downloaded models, or configured development Gemini | Ollama is selected but unavailable; no Gemini key/model is configured |
-| Browser acceptance tests | Playwright Chromium and host browser libraries | Available and passing; current suite exercises preview, not persistent API mode |
+| Browser acceptance tests | Playwright Chromium and host browser libraries | Preview suite passes; owner register/create/re-login/list journey passes against PostgreSQL; reviewer/admin workflow coverage remains |
 | Generated prototype build | Node.js in a separately isolated build boundary | Later; security gate required |
 | Production hosting | Not selected; AWS is intentionally excluded | No |
 
@@ -732,9 +737,15 @@ npm --prefix frontend run lint
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 npm --prefix frontend run test:e2e
+npm --prefix frontend run test:e2e:api
 npm --prefix frontend audit
 npm --prefix frontend audit --omit=dev
 ```
+
+The API-mode Playwright test requires the configured PostgreSQL database and current
+migrations. It launches a test-only FastAPI app that rolls back all test writes when
+the server shuts down, preserving append-only audit records and the existing local
+database.
 
 If API readiness fails, check the configured PostgreSQL host/port, the `vector`
 extension, `alembic current`, and Redis before restarting the worker. Inspect task
@@ -801,6 +812,7 @@ npm --prefix frontend run lint
 npm --prefix frontend run test
 npm --prefix frontend run build
 npm --prefix frontend run test:e2e
+npm --prefix frontend run test:e2e:api
 ```
 
 Playwright uses installed Microsoft Edge on Windows and Chromium on Linux. On

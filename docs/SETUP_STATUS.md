@@ -26,9 +26,17 @@
 - Backend full suite with `RUN_INTEGRATION=1`: `80 passed` (including the new
   single-idea workflow and enabled PostgreSQL/pgvector/Redis/Celery tests), after
   the final test addition; Ruff passed. Frontend unit tests: `16 passed`; Oxlint,
-  TypeScript typecheck, production build, and Playwright: `14 passed`. Installed
+  TypeScript typecheck, production build, and preview Playwright: `14 passed`.
+  The separate owner browser/API persistence journey passed (`1 passed`) against
+  PostgreSQL: registration, authenticated idea creation, reload, new login, and
+  retrieval of the same idea. Its test-only API process uses a PostgreSQL
+  transaction and rolls back test writes on shutdown. Installed
   backend dependency consistency (`pip check`) passed. The full backend suite emits
   upstream LangGraph/Python 3.14 deprecation warnings.
+- One synthetic owner/idea from an earlier failed browser-test attempt remains in
+  the local development database; its lifecycle history is append-only, so it was
+  not deleted. The transactional test harness prevents future API E2E runs from
+  adding persistent test records.
 - A workspace scan found no common hard-coded credential patterns in scanned
   source files; `.env` is ignored and not tracked. The local `.env` was excluded
   from scanning and its values were not displayed.
@@ -36,8 +44,9 @@
   to `8.3.5`. Production-only `npm audit --omit=dev` reports zero vulnerabilities.
   Full `npm audit` still reports 7 advisories (5 high, 2 moderate) in Tailwind 3's
   development dependency tree; a full remediation requires a Tailwind major
-  upgrade. A backend vulnerability database audit, live Ollama/Gemini request, and
-  browser test against authenticated persistent API mode remain unverified.
+  upgrade. A backend vulnerability database audit and live Ollama/Gemini request
+  remain unverified. Authenticated reviewer/admin browser flows and a complete
+  browser-driven review/analysis journey remain untested.
 - Environment check: `AI_PROVIDER=ollama`, but no Ollama executable or local
   Ollama endpoint is available; no Gemini key/model is configured. No model
   inference or generated-code execution was performed. No free-tier hosted

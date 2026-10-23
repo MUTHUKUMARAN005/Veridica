@@ -117,11 +117,12 @@ export function IdeaSubmission() {
   async function submit(values: IdeaForm) {
     setSaveError('')
     setPartialSavedIdeaId('')
-    const input = { ...values, features: values.features.split('\n').map((feature) => feature.trim()).filter(Boolean), assets }
+    const features = values.features.split('\n').map((feature) => feature.trim()).filter(Boolean)
+    const input = { ...values, features, assets }
     if (getAccessToken()) {
       let savedIdeaId = ''
       try {
-        const saved = await createIdea(input)
+        const saved = await createIdea({ ...values, features })
         savedIdeaId = saved.id
         for (const file of assetFiles) {
           await uploadIdeaAsset(saved.id, saved.version, file)

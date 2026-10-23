@@ -645,8 +645,12 @@ PostgreSQL/pgvector/Redis/Celery, including one full API/database workflow test
 using deterministic requirement, quality/NLP, and embedding test doubles. The real
 worker ping and review outbox handoff passed; the active worker was restarted and
 task registrations were inspected. Frontend unit, lint, typecheck, build, and
-preview Playwright suites passed. This does not verify live model inference,
-authenticated browser E2E, generated-code execution, or production deployment.
+preview Playwright suites passed. An additional authenticated owner browser test
+registers, creates an idea through the API, reloads, signs in again, and retrieves
+the persisted PostgreSQL record; test writes are rolled back at server shutdown.
+Reviewer/admin browser workflows and the full browser-driven feedback/analysis
+journey are still unverified. This does not verify live model inference,
+generated-code execution, or production deployment.
 
 ### Backend
 
@@ -663,7 +667,8 @@ authenticated browser E2E, generated-code execution, or production deployment.
 ### Frontend and End to End
 
 - [ ] Keep the existing preview tests passing as regression coverage.
-- [ ] Add API-backed tests rather than treating localStorage tests as persistence acceptance.
+- [x] Add an API-backed browser test for owner registration, idea persistence, and retrieval after a new login.
+- [ ] Extend API-backed browser tests to reviewer/admin workflows and the complete review/analysis journey.
 - [ ] Test real sessions, expired sessions, denied access, and logout.
 - [ ] Test upload failures, real build failures, retry, and validated artifact launch.
 - [ ] Test feedback idempotency, disconnected submission, WebSocket reconnect, and state resync.
@@ -773,8 +778,9 @@ Continue with the remaining release blockers rather than restarting Phase 1:
 3. Supply and review a disposable, restricted prototype build/preview boundary.
 4. Resolve Tailwind 3 development dependency advisories and add a backend
    vulnerability-database scan.
-5. Complete authenticated browser E2E, multi-review confidence/evidence coverage,
-   production storage/privacy controls, and recovery testing.
+5. Extend authenticated browser E2E to reviewer/admin and review/analysis flows;
+   complete multi-review confidence/evidence coverage, production storage/privacy
+   controls, and recovery testing.
 
 Do not provision paid cloud resources, claim 24/7 availability, release production
 traffic, or execute generated code until the corresponding cost, security, privacy,
