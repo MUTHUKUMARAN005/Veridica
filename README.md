@@ -1,46 +1,59 @@
 # Veridica
 
-**Trust-aware idea validation and decision intelligence.**
+## Project Overview
 
-Veridica helps an idea owner capture an idea, define requirements, collect
-version-specific reviewer feedback, analyze evidence, and make traceable
-improvement decisions.
+Veridica helps an idea owner capture an idea, define requirements, collect version-specific reviewer feedback, analyze evidence, and make traceable improvement decisions.
 
-> **Project status:** Veridica has a working local development implementation,
-> but it is not production-ready. The persisted workflow and authenticated owner
-> browser flow have passed local acceptance tests. Live AI inference is not
-> verified, and generated prototype code cannot be built or previewed until a
-> separately restricted execution environment is available.
+**Project status:** Veridica has a working local development implementation, but it is not production-ready. The persisted workflow and authenticated owner browser flow have passed local acceptance tests. Live AI inference is not verified. A saved, schema-driven prototype specification can be previewed interactively in the browser; generated application source remains unbuilt and is never executed by the API or worker.
 
-## What is implemented
+## Problem Statement
 
-- FastAPI authentication and role-aware, owner-scoped idea APIs.
-- PostgreSQL persistence, immutable idea versions, and versioned Alembic
-  migrations.
-- Version-specific reviewer assignments, review sessions, and idempotent
-  feedback submission.
-- Asynchronous requirement and feedback-analysis workflows using Celery and
-  Redis, with persisted result and provenance records.
-- Deterministic trust, consensus, and evidence-linked prioritization.
-- Owner-approved evolution candidates and persisted decision-report snapshots.
-- React/TypeScript frontend with authenticated API mode and a separate offline
-  preview mode.
+Traditional idea validation lacks structured processes for collecting and analyzing reviewer feedback, tracking idea versions, and making traceable improvement decisions. Without proper version control, evidence organization, and trust metrics, idea owners struggle to systematically collect and prioritize reviewer feedback, track idea evolution across multiple versions, make data-driven decisions based on consensus and evidence, maintain auditability of all changes and decisions, or integrate AI-assisted analysis while maintaining trust and transparency.
 
-Generated prototype source is statically validated and stored separately from
-the trusted application. It is **not** executed by FastAPI or the normal Celery
-worker. Do not treat source generation as a built or working prototype.
+Veridica addresses these challenges by providing a complete workflow from idea capture through validated decision-making with deterministic trust scoring, consensus building, and evidence-linked prioritization while maintaining a complete audit trail of all decisions and changes.
 
-## Technology
+## Project Objectives
 
-- Frontend: React, TypeScript, Vite, Tailwind CSS
-- API and agents: Python, FastAPI, Pydantic, SQLAlchemy, Alembic, LangGraph
-- Durable database: PostgreSQL with pgvector
-- Background jobs: Redis and Celery
-- AI providers: Ollama for local development; Gemini Developer API is an
-  optional development-only adapter
+1. Enable structured idea validation with a systematic process for capturing ideas, defining requirements, and collecting structured feedback
+2. Support version tracking with immutable idea versions and full change history via Alembic migrations
+3. Facilitate evidence-based decisions by allowing collection and analysis of reviewer feedback with trust and consensus scoring
+4. Provide authenticated workflows with owner-authenticated browser flows and role-based access control
+5. Offer AI-assisted analysis with integration with local Ollama or Gemini AI providers
+6. Ensure traceability with complete provenance records of all decisions, changes, and feedback
+7. Deliver preview capability with interactive schema-driven preview of generated prototypes in the browser
 
-PostgreSQL is the source of truth. Redis is used for job transport, not durable
-business records. No Docker or AWS service is required for the local workflow.
+## Website Functionality
+
+Veridica provides a web-based platform for idea validation with key features including idea management (create, track versions, publish, delete), reviewer workflow (assign reviewers, create review sessions, idempotent feedback submission), feedback analysis (submit structured feedback, analyze requirements asynchronously using Celery/Redis), decision intelligence (traceable improvement decisions, persist decision-report snapshots), and prototype preview (generate schema-driven prototype specifications, preview generated source interactively in the browser with only allowlisted components supported).
+
+## Technology Stack
+
+### Frontend
+- **React** - UI library for building the interactive web interface
+- **TypeScript** - Type-safe JavaScript for robust development
+- **Vite** - Fast build tool and development server
+- **Tailwind CSS** - Utility-first CSS framework for styling
+- **React Router** - Client-side routing
+- **Lucide React** - Icon library
+
+### Backend
+- **Python** - Primary programming language
+- **FastAPI** - Modern API framework with automatic documentation
+- **Pydantic** - Data validation and settings management using Python type annotations
+- **SQLAlchemy** - SQL toolkit and ORM for database interaction
+- **Alembic** - Database migration tool
+- **LangGraph** - AI agent workflow orchestration
+
+### Database & Infrastructure
+- **PostgreSQL** - Source of truth relational database with pgvector extension
+- **Redis** - Job transport for background tasks, not durable business records
+- **pgvector** - PostgreSQL extension for vector operations enabling AI similarity search
+
+### AI & Analytics
+- **Ollama** - Local large model server for development
+- **Gemini Developer API** - Optional development-only adapter
+
+No Docker or AWS service is required for the local workflow.
 
 ## Requirements
 
@@ -48,12 +61,9 @@ business records. No Docker or AWS service is required for the local workflow.
 - Python 3.12 or later
 - A running PostgreSQL instance with the `vector` extension
 - A running Redis instance
-- Ollama and the configured models only if you want to attempt live local AI
-  analysis
+- Ollama and the configured models only if you want to attempt live local AI analysis
 
-The default local configuration expects PostgreSQL on `127.0.0.1:5433` and
-Redis on `127.0.0.1:6379`. Configure `.env` for your services as described
-below. The application does not start or provision PostgreSQL or Redis for you.
+The default local configuration expects PostgreSQL on `127.0.0.1:5433` and Redis on `127.0.0.1:6379`. Configure `.env` for your services as described below. The application does not start or provision PostgreSQL or Redis for you.
 
 ## Local setup
 
@@ -65,11 +75,7 @@ backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
 npm --prefix frontend ci
 ```
 
-Create a root `.env` using [.env.example](.env.example) as a variable reference.
-Set a database URL using the `postgresql+psycopg` driver, a strong random
-development `JWT_SECRET`, and the correct Redis URL. Do not copy sample
-credentials into a shared or production environment. `.env` is ignored by Git;
-never commit it or paste secrets into logs, issues, or chat.
+Create a root `.env` using `.env.example` as a variable reference. Set a database URL using the `postgresql+psycopg` driver, a strong random development `JWT_SECRET`, and the correct Redis URL. Do not copy sample credentials into a shared or production environment. `.env` is ignored by Git; never commit it or paste secrets into logs, issues, or chat.
 
 Make sure your PostgreSQL database has pgvector available, then apply migrations:
 
@@ -78,8 +84,7 @@ backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
 backend/.venv/bin/alembic -c backend/alembic.ini current
 ```
 
-The current schema head is `0011`. Migrations are forward-only for the normal
-development workflow; do not drop or reinitialize an existing database.
+The current schema head is `0011`. Migration files are in `backend/versions/`.
 
 ## Run Veridica
 
@@ -147,9 +152,10 @@ accepted change is committed with an append-only PostgreSQL audit event.
 - The Gemini adapter is development-only and requires backend-only
   `GEMINI_API_KEY` and `GEMINI_MODEL` configuration. Never expose provider
   credentials to the frontend.
-- Prototype generation currently stops at statically validated source. A
-  restricted disposable build/preview boundary has not been supplied, so no
-  generated source is executed and no working generated prototype is claimed.
+- Prototype source remains statically validated only. A restricted disposable
+  build boundary has not been supplied, so no generated source is executed or
+  claimed as built. The separate schema-driven browser preview supports only
+  explicitly allowlisted components and local-only interactions.
 
 ## Tests and checks
 

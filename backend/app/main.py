@@ -57,11 +57,13 @@ from app.schemas import (
     LoginRequest,
     PrototypeBuildResponse,
     PrototypeGenerationRequest,
+    PrototypePreviewSpec,
     PrototypeSourceResponse,
     RegisterRequest,
     RequirementAnalysisResponse,
     RequirementFact,
     RequirementSpecification,
+    ReviewerPrototypePreviewResponse,
     ReviewCycleResponse,
     ReviewerAssignmentResponse,
     ReviewResponse,
@@ -1015,7 +1017,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.post(
         "/api/v1/ideas/{idea_id}/versions/{version}/prototypes",
         response_model=PrototypeBuildResponse,
-        status_code=201,
+        status_code=202,
         tags=["Prototype builder"],
     )
     def generate_prototype_source(
@@ -1057,13 +1059,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if existing is not None:
             response.status_code = 200
             return PrototypeBuildResponse.model_validate(existing)
-        build = create_prototype_source(
-            session,
-            idea_version,
-            requirement_run,
-            str(settings.prototype_source_storage_dir),
+        # Enqueue prototype generation as a Celery task
+        from app.workers.celery_app import celery_app
+
+        task = celery_app.send_task(
+            "veridica.prototype.generate",
+            args=[requirement_run.id, idea_version.id, str(settings.prototype_source_storage_dir)],
         )
-        return PrototypeBuildResponse.model_validate(build)
+        # Return 202 Accepted with task ID for status polling
+        response.status_code = 202
+        headers = {"X-Task-Id": task.id}
+        return PrototypeBuildResponse(
+            id=task.id,
+            requirement_analysis_run_id=requirement_run.id,
+            idea_version_id=idea_version.id,
+            status="queued",
+            task_id=task.id,
+            created_at=datetime.now(UTC),
+            **{k: v for k, v in PrototypeBuildResponse.model_fields.items() if k not in ["id", "requirement_analysis_run_id", "idea_version_id", "status", "task_id", "created_at"]},
+        )
 
     @application.get(
         "/api/v1/ideas/{idea_id}/versions/{version}/prototypes",
@@ -1500,6 +1514,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Assignment not found.")
         assignment, idea, version, review = record
         return _reviewer_assignment_response(assignment, idea, version, review, session)
+
+    @application.get(
+        "/api/v1/reviewer/assignments/{assignment_id}/prototype",
+        response_model=ReviewerPrototypePreviewResponse | None,
+        tags=["Reviewer"],
+    )
+    def get_reviewer_prototype_preview(
+        assignment_id: str,
+        user: Annotated[User, Depends(require_role("reviewer"))],
+        session: Annotated[Session, Depends(request_session)],
+    ) -> ReviewerPrototypePreviewResponse | None:
+        record = _reviewer_assignment_record(session, assignment_id, user.id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Assignment not found.")
+        assignment, _idea, version, _review = record
+        build = session.scalar(
+            select(PrototypeBuild)
+            .where(PrototypeBuild.idea_version_id == assignment.idea_version_id)
+            .order_by(PrototypeBuild.created_at.desc())
+        )
+        if build is None or build.status != "source_generated" or build.validation_status != "passed":
+            return None
+        try:
+            preview_spec = PrototypePreviewSpec.model_validate(
+                (build.plan or {}).get("preview_spec")
+            )
+        except ValidationError as error:
+            raise HTTPException(
+                status_code=500,
+                detail="The saved prototype preview specification failed validation.",
+            ) from error
+        return ReviewerPrototypePreviewResponse(
+            prototype_build_id=build.id,
+            idea_version_id=version.id,
+            source_version=version.version,
+            requirement_analysis_run_id=build.requirement_analysis_run_id,
+            preview_spec=preview_spec,
+        )
 
     @application.post(
         "/api/v1/reviewer/assignments/{assignment_id}/sessions",

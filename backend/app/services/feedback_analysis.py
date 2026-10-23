@@ -30,21 +30,37 @@ from app.models import (
 from app.providers import build_chat_provider
 from app.providers.base import (
     ChatProvider,
+    EmbeddingProvider,
     ProviderConfigurationError,
     ProviderError,
     RetryableProviderError,
 )
-from app.providers.ollama import OllamaProvider
 from app.schemas import FeedbackDuplicatePair
 
 ChatProviderFactory = Callable[[Settings], ChatProvider]
-EmbeddingProviderFactory = Callable[[Settings], OllamaProvider]
+EmbeddingProviderFactory = Callable[[Settings], EmbeddingProvider]
 
 
 def configured_model(settings: Settings) -> str:
     if settings.ai_provider == "gemini":
         return settings.gemini_model or "unconfigured"
     return settings.ollama_chat_model
+
+
+def configured_embedding_model(settings: Settings) -> str:
+    if settings.ai_provider == "gemini":
+        return settings.gemini_embedding_model or "text-embedding-004"
+    return settings.ollama_embedding_model
+
+
+def configured_embedding_dimensions(settings: Settings) -> int:
+    if settings.ai_provider == "gemini":
+        return settings.gemini_embedding_dimensions
+    return settings.ollama_embedding_dimensions
+
+
+def _elapsed_ms(started_at: datetime) -> int:
+    return int((datetime.now(UTC) - started_at).total_seconds() * 1000)
 
 
 def source_evidence(review: IdeaReview) -> dict:
@@ -108,7 +124,7 @@ def create_analysis_run(
         source_feedback_ids=feedback_ids,
         provider=settings.ai_provider,
         model_version=configured_model(settings),
-        embedding_model_version=settings.ollama_embedding_model,
+        embedding_model_version=configured_embedding_model(settings),
         prompt_version=PROMPT_VERSION,
     )
     session.add(run)
@@ -121,6 +137,8 @@ def _mark_failed(
     run_id: str,
     message: str,
     validation_status: str = "not_run",
+    failure_category: str | None = None,
+    duration_ms: int | None = None,
 ) -> None:
     with factory() as session:
         run = session.get(FeedbackAnalysisRun, run_id)
@@ -129,6 +147,9 @@ def _mark_failed(
         run.status = "failed"
         run.validation_status = validation_status
         run.error_message = message
+        run.failure_category = failure_category
+        if duration_ms is not None:
+            run.duration_ms = duration_ms
         run.completed_at = datetime.now(UTC)
         session.commit()
 
@@ -137,8 +158,13 @@ def mark_feedback_analysis_failed(
     factory: sessionmaker[Session],
     run_id: str,
     message: str,
+    failure_category: str | None = None,
+    duration_ms: int | None = None,
 ) -> None:
-    _mark_failed(factory, run_id, message)
+    _mark_failed(
+        factory, run_id, message, failure_category=failure_category,
+        duration_ms=duration_ms,
+    )
 
 
 def _load_embeddings(
@@ -148,17 +174,19 @@ def _load_embeddings(
     embedding_provider_factory: EmbeddingProviderFactory,
 ) -> dict[str, list[float]]:
     provider = embedding_provider_factory(settings)
+    embedding_model = configured_embedding_model(settings)
+    embedding_dimensions = configured_embedding_dimensions(settings)
     vectors: dict[str, list[float]] = {}
     for item in evidence:
         content_hash = embedding_content_hash(item)
         record = session.scalar(
             select(FeedbackEmbedding).where(
                 FeedbackEmbedding.feedback_id == item["feedback_id"],
-                FeedbackEmbedding.model_version == settings.ollama_embedding_model,
+                FeedbackEmbedding.model_version == embedding_model,
             )
         )
         if record is not None and record.content_sha256 == content_hash:
-            values = validate_embedding(record.embedding, settings.ollama_embedding_dimensions)
+            values = validate_embedding(record.embedding, embedding_dimensions)
         else:
             if record is not None:
                 raise FeedbackAnalysisValidationError(
@@ -166,13 +194,13 @@ def _load_embeddings(
                 )
             values = validate_embedding(
                 provider.embed(feedback_text(item)),
-                settings.ollama_embedding_dimensions,
+                embedding_dimensions,
             )
             record = FeedbackEmbedding(
                 feedback_id=item["feedback_id"],
-                provider="ollama",
-                model_version=settings.ollama_embedding_model,
-                dimension=settings.ollama_embedding_dimensions,
+                provider=settings.ai_provider,
+                model_version=embedding_model,
+                dimension=embedding_dimensions,
                 content_sha256=content_hash,
                 embedding=values,
             )
@@ -224,7 +252,7 @@ def execute_feedback_analysis(
     settings: Settings,
     run_id: str,
     provider_factory: ChatProviderFactory = build_chat_provider,
-    embedding_provider_factory: EmbeddingProviderFactory = OllamaProvider,
+    embedding_provider_factory: EmbeddingProviderFactory = build_chat_provider,
 ) -> dict[str, str]:
     with factory() as session:
         run = session.get(FeedbackAnalysisRun, run_id)
@@ -276,6 +304,8 @@ def execute_feedback_analysis(
         run.error_message = None
         session.commit()
 
+    started_at = datetime.now(UTC)
+    token_usage: dict[str, int] | None = None
     try:
         chat_provider = provider_factory(settings)
         agents = run_feedback_agent_graph(
@@ -283,12 +313,13 @@ def execute_feedback_analysis(
             evidence=evidence,
             idea_context=idea_context,
         )
+        token_usage = getattr(chat_provider, "last_token_usage", None)
         with factory() as session:
             vectors = _load_embeddings(
                 session, evidence, settings, embedding_provider_factory
             )
             duplicates = _semantic_duplicates(
-                session, vectors, settings.ollama_embedding_model
+                session, vectors, configured_embedding_model(settings)
             )
             session.commit()
         result = build_analysis_output(
@@ -310,19 +341,40 @@ def execute_feedback_analysis(
             session.commit()
         raise
     except ProviderConfigurationError as error:
-        _mark_failed(factory, run_id, str(error))
+        _mark_failed(
+            factory,
+            run_id,
+            str(error),
+            failure_category="configuration",
+            duration_ms=_elapsed_ms(started_at),
+        )
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except ProviderError as error:
-        _mark_failed(factory, run_id, str(error))
+        _mark_failed(
+            factory,
+            run_id,
+            str(error),
+            failure_category="provider_response",
+            duration_ms=_elapsed_ms(started_at),
+        )
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except FeedbackAnalysisValidationError as error:
-        _mark_failed(factory, run_id, str(error), "invalid")
+        _mark_failed(
+            factory,
+            run_id,
+            str(error),
+            "invalid",
+            failure_category="validation",
+            duration_ms=_elapsed_ms(started_at),
+        )
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except Exception:
         _mark_failed(
             factory,
             run_id,
             "The feedback intelligence workflow encountered an unexpected internal error.",
+            failure_category="unexpected",
+            duration_ms=_elapsed_ms(started_at),
         )
         raise
 
@@ -335,5 +387,10 @@ def execute_feedback_analysis(
         run.validation_status = "valid"
         run.error_message = None
         run.completed_at = datetime.now(UTC)
+        if run.started_at is not None:
+            run.duration_ms = int(
+                (run.completed_at - run.started_at).total_seconds() * 1000
+            )
+        run.token_usage = token_usage
         session.commit()
         return {"status": run.status, "workflow_run_id": workflow_run_id}

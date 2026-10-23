@@ -1,13 +1,13 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { Activity, ArrowUpRight, Bell, ChartNoAxesCombined, ChevronDown, CircleHelp, Compass, FileText, FlaskConical, GitBranch, Home, Lightbulb, Menu, MessageSquare, Monitor, Search, Settings, ShieldCheck, SquarePlus, Users, X } from 'lucide-react'
-import { WorkspaceProvider, useWorkspace } from './services/workspace'
-import type { Role } from './services/preview'
-import { Dashboard, IdeaDetails, Ideas, IdeaSubmission, ReviewQueue } from './pages/WorkspacePages'
-import { PrototypeWorkspace, ReviewWorkspace } from './pages/PrototypePages'
-import { AdminPanel, AuthPage, SettingsPage, WorkflowMonitor } from './pages/ManagementPages'
-import { Empty, Modal } from './components/ui'
-import { getCurrentUser, logout } from './services/auth'
+import { WorkspaceProvider, useWorkspace } from '@/services/workspace'
+import type { Role } from '@/services/preview'
+import { Dashboard, IdeaDetails, Ideas, IdeaSubmission, ReviewQueue } from '@/pages/WorkspacePages'
+import { PrototypeWorkspace, ReviewWorkspace } from '@/pages/PrototypePages'
+import { AdminPanel, AuthPage, SettingsPage, WorkflowMonitor } from '@/pages/ManagementPages'
+import { Empty, Modal } from '@/components/ui'
+import { getCurrentUser, logout } from '@/services/auth'
 
 const Feedback = lazy(() => import('./pages/IntelligencePages').then((module) => ({ default: module.Feedback })))
 const Analytics = lazy(() => import('./pages/IntelligencePages').then((module) => ({ default: module.Analytics })))

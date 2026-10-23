@@ -1,4 +1,5 @@
 import { getAccessToken } from './auth.ts'
+import type { PrototypePreviewSpec } from './ideas'
 
 export type ReviewerAssignment = {
   id: string
@@ -17,6 +18,14 @@ export type ReviewerAssignment = {
   review_submitted: boolean
   review_session: ReviewSession | null
   feedback: ApiReview | null
+}
+
+export type ReviewerPrototypePreview = {
+  prototype_build_id: string
+  idea_version_id: string
+  source_version: number
+  requirement_analysis_run_id: string
+  preview_spec: PrototypePreviewSpec
 }
 
 export type AdminAssignment = {
@@ -111,6 +120,12 @@ export function listReviewerAssignments() {
 
 export function getReviewerAssignment(assignmentId: string) {
   return request<ReviewerAssignment>(`/api/v1/reviewer/assignments/${encodeURIComponent(assignmentId)}`)
+}
+
+export function getReviewerPrototypePreview(assignmentId: string) {
+  return request<ReviewerPrototypePreview | null>(
+    `/api/v1/reviewer/assignments/${encodeURIComponent(assignmentId)}/prototype`,
+  )
 }
 
 export function startReviewerSession(assignmentId: string) {

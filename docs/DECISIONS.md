@@ -1,5 +1,28 @@
 # Decisions
 
+## 2026-10-23: Safe local prototype preview uses a persisted UI specification
+
+The local MVP now stores a strict Pydantic-validated, allowlisted UI specification
+inside each immutable prototype record alongside the existing source plan. The
+specification is derived only from the exact idea version and its persisted,
+validated Requirement Agent result. React renders the supported headings, text,
+cards, feature search, journey checklist, local-only note form, and bounded button
+actions as text and native controls. Unknown component kinds and extra properties
+are rejected; content is never interpreted as HTML or JavaScript.
+
+This is the supported local browser preview requested for safely reviewable
+prototypes. It is distinct from generated source: the API and general Celery worker
+still do not execute generated code, and the source remains statically validated,
+unbuilt, and unpublished. No migration was needed because the specification is
+stored in the existing version-linked JSON plan. A restricted build boundary is
+still required before claiming that generated source is a built artifact.
+
+An opt-in `RUN_GEMINI_E2E=1` acceptance test now exercises the configured backend
+Gemini adapter through requirement analysis and verifies the schema-validated
+result was persisted and retrieved. It is intentionally not run by ordinary unit
+tests. A live request remains unverified until a provider-verified model and a
+rotated, backend-only credential are configured locally.
+
 ## 2026-10-23: Phase 8 single-idea integration verification
 
 Phase 8 adds a PostgreSQL-backed acceptance test for the complete available

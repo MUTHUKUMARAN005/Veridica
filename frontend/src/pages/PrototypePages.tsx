@@ -3,14 +3,15 @@ import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, ArrowRight, Bookmark, Check, CheckCheck, CheckCircle2, ChevronRight, Code2, FileText, GraduationCap, LayoutDashboard, Leaf, ListChecks, MapPin, Monitor, Play, Search, Send, ShieldCheck, Smartphone, Star, Target } from 'lucide-react'
-import { addReview } from '../services/preview'
-import type { Idea, Review } from '../services/preview'
-import { useWorkspace } from '../services/workspace'
-import { Badge, Empty, Modal, PageHeading, Status } from '../components/ui'
-import { IdeaDiscussion } from '../components/IdeaDiscussion'
-import { getAccessToken } from '../services/auth'
-import { getReviewerAssignment, startReviewerSession, submitReviewerReview } from '../services/authorization'
-import type { ApiReview, ReviewerAssignment, ReviewSubmission } from '../services/authorization'
+import { SchemaPrototypePreview } from '@/components/SchemaPrototypePreview'
+import { addReview } from '@/services/preview'
+import type { Idea, Review } from '@/services/preview'
+import { useWorkspace } from '@/services/workspace'
+import { Badge, Empty, Modal, PageHeading, Status } from '@/components/ui'
+import { IdeaDiscussion } from '@/components/IdeaDiscussion'
+import { getAccessToken } from '@/services/auth'
+import { getReviewerAssignment, getReviewerPrototypePreview, startReviewerSession, submitReviewerReview } from '@/services/authorization'
+import type { ApiReview, ReviewerAssignment, ReviewerPrototypePreview, ReviewSubmission } from '@/services/authorization'
 
 const jobs = [
   { id: 'orbit', company: 'Orbit Labs', title: 'Frontend engineering intern', field: 'Engineering', location: 'Bengaluru · Hybrid', color: 'green', skills: 'React · TypeScript · Accessible UI', description: 'Build and test accessible interfaces alongside a product team. This is a fictional opportunity for prototype testing.' },
@@ -70,6 +71,7 @@ export function ReviewWorkspace() {
 
 function ApiReviewWorkspace({ assignmentId }: { assignmentId: string }) {
   const [assignment, setAssignment] = useState<ReviewerAssignment | null>(null)
+  const [prototypePreview, setPrototypePreview] = useState<ReviewerPrototypePreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -96,6 +98,9 @@ function ApiReviewWorkspace({ assignmentId }: { assignmentId: string }) {
       const result = await getReviewerAssignment(assignmentId)
       if (!active) return
       setAssignment(result)
+      const savedPrototype = await getReviewerPrototypePreview(assignmentId)
+      if (!active) return
+      setPrototypePreview(savedPrototype)
       if (!result.review_submitted) {
         const reviewSession = result.review_session ?? await startReviewerSession(assignmentId)
         if (active) {
@@ -214,8 +219,12 @@ function ApiReviewWorkspace({ assignmentId }: { assignmentId: string }) {
   }
   return <><Link className="back-link" to="/reviews"><ArrowLeft size={15} />Your review queue</Link>
     <PageHeading eyebrow="AUTHENTICATED REVIEW" title={assignment.idea_title}>Version {assignment.version} · Assigned specifically to your account.</PageHeading>
-    <div className="notice"><ShieldCheck size={20} /><div><strong>Review the submitted idea version</strong><p>No generated prototype is available yet. This form records your structured review of the assigned version only.</p></div></div>
+    <div className="notice"><ShieldCheck size={20} /><div><strong>Review the submitted idea version</strong><p>This form records structured review of the assigned version only. Any preview is limited to the saved, allowlisted browser specification.</p></div></div>
+    {error && <p role="alert" className="error">{error}</p>}
     <section className="prose-section"><h2>Problem</h2><p>{assignment.problem}</p><h2>Proposed solution</h2><p>{assignment.solution}</p><h2>Intended audience</h2><p>{assignment.audience}</p><h2>Features</h2><ul>{assignment.features.map((feature) => <li key={feature}>{feature}</li>)}</ul><h2>Constraints</h2><p>{assignment.constraints || 'No constraints provided.'}</p></section>
+    {prototypePreview
+      ? <SchemaPrototypePreview spec={prototypePreview.preview_spec} />
+      : <p className="muted">No validated browser preview is available for this assigned version.</p>}
     {assignment.review_submitted && assignment.feedback
       ? reviewReceipt(assignment.feedback)
       : <form className="review-form" onSubmit={submit}><h2>Your review</h2>

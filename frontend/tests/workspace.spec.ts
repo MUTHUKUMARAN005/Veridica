@@ -154,7 +154,7 @@ test('second prototype records requests and can be published for review', async 
   await expect(page.getByText('This is owner-provided preview content. No AI workflow has run in offline preview mode.', { exact: true })).toBeVisible()
 })
 
-test('authenticated owner sees generated source as unbuilt and unpublished', async ({ page }) => {
+test('authenticated owner sees safe interactive preview without executing generated source', async ({ page }) => {
   const timestamp = '2026-10-23T00:00:00Z'
   const version = {
     id: 'idea-version-1',
@@ -218,7 +218,40 @@ test('authenticated owner sees generated source as unbuilt and unpublished', asy
     validation_status: 'passed',
     build_status: 'blocked_isolation',
     publish_status: 'unpublished',
-    plan: null,
+    plan: {
+      preview_spec: {
+        schema_version: '1',
+        source_version: 1,
+        requirement_analysis_id: requirement.id,
+        title: 'Campus Compass',
+        screens: [
+          {
+            key: 'overview',
+            title: 'Overview',
+            components: [
+              { type: 'heading', text: 'Campus Compass' },
+              { type: 'text', text: '<img src=x onerror=window.__previewInjected=true>' },
+              { type: 'button', label: 'Mark explored', action: 'mark-complete' },
+            ],
+          },
+          {
+            key: 'features',
+            title: 'Features',
+            components: [{ type: 'search', label: 'Search validated features', items: ['Preparation roadmap'] }],
+          },
+          {
+            key: 'journeys',
+            title: 'Journeys',
+            components: [{ type: 'checklist', title: 'Validated journey steps', items: ['Review roadmap'] }],
+          },
+          {
+            key: 'questions',
+            title: 'Questions',
+            components: [{ type: 'form', label: 'Try a local prototype note', placeholder: 'Write a note', submit_label: 'Save note locally' }],
+          },
+        ],
+      },
+    },
     manifest: null,
     validation_results: {
       scope: 'Static checks only.',
@@ -489,7 +522,22 @@ test('authenticated owner sees generated source as unbuilt and unpublished', asy
   await expect(page.getByRole('heading', { name: 'Safe prototype source' })).toBeVisible()
   await page.getByRole('button', { name: 'Generate prototype source' }).click()
   await expect(page.getByText('Build: blocked — an isolated disposable build environment is not available.')).toBeVisible()
-  await expect(page.getByText('Preview: unpublished; no working preview exists.')).toBeVisible()
+  await expect(
+    page.locator('.prototype-source-panel').getByText('Generated source:').locator('..'),
+  ).toContainText('not executed')
+  await expect(page.getByRole('region', { name: 'Schema-driven prototype preview' })).toBeVisible()
+  await expect(page.getByText('<img src=x onerror=window.__previewInjected=true>', { exact: true })).toBeVisible()
+  await expect(page.locator('.schema-prototype-screen img')).toHaveCount(0)
+  expect(await page.evaluate(() => (window as Window & { __previewInjected?: boolean }).__previewInjected)).toBeUndefined()
+  await page.getByRole('button', { name: 'Features', exact: true }).click()
+  await page.getByLabel('Search validated features').fill('roadmap')
+  await expect(page.getByText('Preparation roadmap', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Journeys', exact: true }).click()
+  await page.getByLabel('Review roadmap').check()
+  await page.getByRole('button', { name: 'Questions', exact: true }).click()
+  await page.getByLabel('Try a local prototype note').fill('This remains local.')
+  await page.getByRole('button', { name: 'Save note locally', exact: true }).click()
+  await expect(page.getByText('Note saved in this browser session only.', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'View generated source' }).click()
   await page.getByText('src/Prototype.tsx', { exact: true }).click()
   await expect(page.getByText(/export default function Safe/)).toBeVisible()

@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     ollama_embedding_dimensions: int = 768
     gemini_api_key: str | None = None
     gemini_model: str | None = None
+    gemini_embedding_model: str | None = None
+    gemini_embedding_dimensions: int = 768
     idea_asset_storage_dir: Path = ROOT / "backend" / ".private-assets"
     prototype_source_storage_dir: Path = ROOT / "backend" / ".private-prototypes"
 
@@ -44,6 +46,10 @@ class Settings(BaseSettings):
         if self.ollama_embedding_dimensions != 768:
             raise ValueError(
                 "OLLAMA_EMBEDDING_DIMENSIONS must be 768 for the configured pgvector schema."
+            )
+        if self.ai_provider == "gemini" and self.gemini_embedding_dimensions != 768:
+            raise ValueError(
+                "GEMINI_EMBEDDING_DIMENSIONS must be 768 for the configured pgvector schema."
             )
         if self.app_env == "production" and self.ai_provider == "gemini":
             raise ValueError(

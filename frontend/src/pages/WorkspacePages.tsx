@@ -3,12 +3,13 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { ArrowLeft, ArrowRight, ArrowUpRight, Clock3, FileText, Lightbulb, MessageSquare, Play, Plus, Search, Upload, Users } from 'lucide-react'
-import { addIdea, ideaReviews, publishIdea } from '../services/preview'
-import type { Idea } from '../services/preview'
-import { useWorkspace } from '../services/workspace'
-import { Badge, dateLabel, Empty, Modal, PageHeading, SectionHeading, Status } from '../components/ui'
-import { ProjectVisual } from '../components/ProjectVisual'
-import { IdeaFeed } from '../components/IdeaFeed'
+import { addIdea, ideaReviews, publishIdea } from '@/services/preview'
+import type { Idea } from '@/services/preview'
+import { useWorkspace } from '@/services/workspace'
+import { Badge, dateLabel, Empty, Modal, PageHeading, SectionHeading, Status } from '@/components/ui'
+import { ProjectVisual } from '@/components/ProjectVisual'
+import { IdeaFeed } from '@/components/IdeaFeed'
+import { SchemaPrototypePreview } from '@/components/SchemaPrototypePreview'
 import {
   createIdea,
   createIdeaVersion,
@@ -24,7 +25,7 @@ import {
   toPreviewIdea,
   updateIdeaStatus,
   uploadIdeaAsset,
-} from '../services/ideas'
+} from '@/services/ideas'
 import type {
   ApiIdeaDetail,
   PrototypeBuild,
@@ -471,8 +472,9 @@ function PrototypeSourcePanel({
       <p><strong>Source:</strong> {build.status.replaceAll('_', ' ')} · V{build.source_version}</p>
       <p><strong>Static validation:</strong> {build.validation_status}</p>
       <p role="status"><strong>Build:</strong> blocked — an isolated disposable build environment is not available.</p>
-      <p><strong>Preview:</strong> unpublished; no working preview exists.</p>
+      <p><strong>Generated source:</strong> unpublished and not executed. The browser preview below renders only the supported saved specification.</p>
       {build.error_message && <p role="alert" className="error">{build.error_message}</p>}
+      {build.plan?.preview_spec && <SchemaPrototypePreview spec={build.plan.preview_spec} />}
       {build.source_files.length > 0 && <>
         <ul>{build.source_files.map((file) => <li key={file.path}>{file.path} · {file.size_bytes} bytes</li>)}</ul>
         <button

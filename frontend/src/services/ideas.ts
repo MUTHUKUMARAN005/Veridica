@@ -110,6 +110,7 @@ export type PrototypeBuild = {
     category: 'education-placement'
     screens: { key: 'overview' | 'features' | 'journeys' | 'questions'; title: string; components: { name: string; purpose: string }[] }[]
     limitations: string[]
+    preview_spec: PrototypePreviewSpec | null
   } | null
   manifest: {
     template_id: 'education-placement-preparation'
@@ -141,6 +142,27 @@ export type PrototypeBuild = {
   error_message: string | null
   created_at: string
   completed_at: string | null
+}
+
+export type PrototypePreviewComponent =
+  | { type: 'heading'; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'card'; title: string; body: string }
+  | { type: 'search'; label: string; items: string[] }
+  | { type: 'checklist'; title: string; items: string[] }
+  | { type: 'form'; label: string; placeholder: string; submit_label: string }
+  | { type: 'button'; label: string; action: 'mark-complete' }
+
+export type PrototypePreviewSpec = {
+  schema_version: '1'
+  source_version: number
+  requirement_analysis_id: string
+  title: string
+  screens: {
+    key: 'overview' | 'features' | 'journeys' | 'questions'
+    title: string
+    components: PrototypePreviewComponent[]
+  }[]
 }
 
 export type PrototypeSource = {

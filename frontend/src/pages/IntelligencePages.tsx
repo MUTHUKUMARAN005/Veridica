@@ -3,18 +3,18 @@ import { Link, useLocation, useSearchParams } from 'react-router'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import { ArcElement, BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, Tooltip } from 'chart.js'
 import { ArrowRight, ArrowUpRight, Check, Download, FileCheck2, FileText, GitBranch, Info, LockKeyhole, MessageSquare, Printer, Search, ShieldCheck, Sparkles } from 'lucide-react'
-import { downloadFile, ideaReviews, proposeEvolution, rankPriorities, reviewSummary } from '../services/preview'
-import { useWorkspace } from '../services/workspace'
-import { Badge, dateLabel, Empty, PageHeading, SectionHeading } from '../components/ui'
-import { IdeaDiscussion } from '../components/IdeaDiscussion'
-import { PriorityBoard, PrioritySnapshot } from '../components/PriorityBoard'
-import { getAccessToken } from '../services/auth'
+import { downloadFile, ideaReviews, proposeEvolution, rankPriorities, reviewSummary } from '@/services/preview'
+import { useWorkspace } from '@/services/workspace'
+import { Badge, dateLabel, Empty, PageHeading, SectionHeading } from '@/components/ui'
+import { IdeaDiscussion } from '@/components/IdeaDiscussion'
+import { PriorityBoard, PrioritySnapshot } from '@/components/PriorityBoard'
+import { getAccessToken } from '@/services/auth'
 import type {
   DecisionReport,
   EvolutionProposal,
   FeedbackAnalysisRun,
   PersistedReview,
-} from '../services/ideas'
+} from '@/services/ideas'
 import {
   approveEvolutionProposal,
   createDecisionReport,
@@ -27,7 +27,7 @@ import {
   listIdeas,
   listPersistedFeedback,
   startFeedbackAnalysis,
-} from '../services/ideas'
+} from '@/services/ideas'
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, Legend, LinearScale, Tooltip)
 ChartJS.defaults.font.family = 'Aptos, Segoe UI, sans-serif'

@@ -25,6 +25,10 @@ class ChatProvider(Protocol):
     def chat(self, prompt: str, system: str) -> str: ...
 
 
+class EmbeddingProvider(Protocol):
+    def embed(self, text: str) -> list[float]: ...
+
+
 def classify_http_error(response: httpx.Response, provider: str) -> None:
     if response.is_success:
         return

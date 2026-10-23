@@ -1,8 +1,34 @@
 export type AuthUser = { id: string; email: string; role: 'owner' | 'reviewer' | 'admin' }
 export type AuthResult = { access_token: string; token_type: 'bearer'; user: AuthUser }
 
+const storageKey = 'veridica.frontend-auth.v1'
+
 let accessToken: string | null = null
 let currentUser: AuthUser | null = null
+
+function loadAuthFromStorage() {
+  try {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      accessToken = parsed.accessToken ?? null
+      currentUser = parsed.currentUser ?? null
+    }
+  } catch {
+    accessToken = null
+    currentUser = null
+  }
+}
+
+function saveAuthToStorage() {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify({ accessToken, currentUser }))
+  } catch {
+    // Storage full or unavailable - silently ignore
+  }
+}
+
+loadAuthFromStorage()
 
 async function request<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
@@ -24,6 +50,7 @@ export function register(email: string, password: string) {
   return request<AuthResult>('/api/v1/auth/register', { email, password }).then((result) => {
     accessToken = result.access_token
     currentUser = result.user
+    saveAuthToStorage()
     return result
   })
 }
@@ -32,6 +59,7 @@ export function login(email: string, password: string) {
   return request<AuthResult>('/api/v1/auth/login', { email, password }).then((result) => {
     accessToken = result.access_token
     currentUser = result.user
+    saveAuthToStorage()
     return result
   })
 }
@@ -39,6 +67,7 @@ export function login(email: string, password: string) {
 export function logout() {
   accessToken = null
   currentUser = null
+  saveAuthToStorage()
 }
 
 export function getAccessToken() {

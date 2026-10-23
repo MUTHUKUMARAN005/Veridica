@@ -17,7 +17,7 @@ from app.agents.requirement_agent import (
 )
 from app.config import Settings
 from app.main import create_app
-from app.models import Base, RequirementAnalysisRun
+from app.models import Base, Idea, IdeaVersion, RequirementAnalysisRun, User
 from app.providers import build_chat_provider
 from app.providers.base import (
     ProviderConfigurationError,
@@ -181,6 +181,84 @@ def test_gemini_configuration_errors_are_explicit():
         )
     with pytest.raises(ProviderConfigurationError, match="GEMINI_MODEL"):
         build_chat_provider(Settings(_env_file=None, ai_provider="gemini", gemini_api_key="key"))
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    os.getenv("RUN_GEMINI_E2E") != "1",
+    reason="Set RUN_GEMINI_E2E=1 to make a real Gemini request.",
+)
+def test_live_gemini_requirement_analysis_is_validated_and_persisted():
+    settings = Settings()
+    if settings.ai_provider != "gemini":
+        pytest.fail("Set AI_PROVIDER=gemini in the backend environment.")
+    if not settings.gemini_api_key:
+        pytest.fail("Configure GEMINI_API_KEY in the backend environment.")
+    if not settings.gemini_model:
+        pytest.fail("Configure a provider-verified GEMINI_MODEL in the backend environment.")
+
+    from app.services.requirements import execute_requirement_analysis
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    user_id = str(uuid4())
+    idea_id = str(uuid4())
+    version_id = str(uuid4())
+    analysis_id = str(uuid4())
+    with factory() as session:
+        session.add(User(id=user_id, email=f"{user_id}@example.invalid", password_hash="test"))
+        session.add(Idea(id=idea_id, owner_id=user_id, status="Draft", current_version=1))
+        session.add(
+            IdeaVersion(
+                id=version_id,
+                idea_id=idea_id,
+                created_by_id=user_id,
+                version=1,
+                title="Campus study planner",
+                category="Education",
+                problem="Students need a clearer way to organize study sessions.",
+                solution="A simple planner that helps students arrange study tasks.",
+                audience="College students",
+                features=["Create a study checklist"],
+                constraints="No external integrations.",
+            )
+        )
+        session.add(
+            RequirementAnalysisRun(
+                id=analysis_id,
+                idea_id=idea_id,
+                idea_version_id=version_id,
+                source_version=1,
+                requested_by_id=user_id,
+                workflow_run_id=str(uuid4()),
+                provider="gemini",
+                model_version=settings.gemini_model,
+                prompt_version="requirement-spec-v1",
+                status="queued",
+                validation_status="pending",
+                attempt_count=0,
+            )
+        )
+        session.commit()
+
+    result = execute_requirement_analysis(factory, settings, analysis_id)
+    assert result["status"] == "completed", "Live Gemini analysis did not complete."
+    with factory() as session:
+        persisted = session.get(RequirementAnalysisRun, analysis_id)
+        assert persisted is not None
+        assert persisted.status == "completed"
+        assert persisted.validation_status == "valid"
+        assert persisted.provider == "gemini"
+        assert persisted.model_version == settings.gemini_model
+        assert persisted.prompt_version == "requirement-spec-v1"
+        validated = RequirementSpecification.model_validate(persisted.result)
+        assert validated.problem
+        assert validated.core_features
 
 
 def make_test_client(settings: Settings | None = None):

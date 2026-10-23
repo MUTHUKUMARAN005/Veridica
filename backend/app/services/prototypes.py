@@ -13,7 +13,102 @@ from app.agents.ai_builder import (
     write_source_files,
 )
 from app.models import IdeaVersion, PrototypeBuild, RequirementAnalysisRun
-from app.schemas import RequirementSpecification
+from app.schemas import (
+    PrototypePreviewSpec,
+    RequirementSpecification,
+)
+
+
+def _build_preview_spec(
+    idea: IdeaVersion,
+    requirements: RequirementAnalysisRun,
+) -> dict:
+    specification = RequirementSpecification.model_validate(requirements.result)
+    spec = PrototypePreviewSpec(
+        schema_version="1",
+        source_version=idea.version,
+        requirement_analysis_id=requirements.id,
+        title=idea.title,
+        screens=[
+            {
+                "key": "overview",
+                "title": "Overview",
+                "components": [
+                    {"type": "heading", "text": idea.title},
+                    {
+                        "type": "text",
+                        "text": next(
+                            (fact.text for fact in specification.problem),
+                            idea.problem,
+                        ),
+                    },
+                    {
+                        "type": "card",
+                        "title": "Designed for",
+                        "body": idea.audience,
+                    },
+                    {
+                        "type": "button",
+                        "label": "Mark prototype as explored",
+                        "action": "mark-complete",
+                    },
+                ],
+            },
+            {
+                "key": "features",
+                "title": "Features",
+                "components": [
+                    {
+                        "type": "search",
+                        "label": "Search validated features",
+                        "items": [
+                            fact.text
+                            for fact in specification.core_features
+                            if fact.basis == "explicit"
+                        ],
+                    }
+                ],
+            },
+            {
+                "key": "journeys",
+                "title": "Journeys",
+                "components": [
+                    {
+                        "type": "checklist",
+                        "title": "Validated journey steps",
+                        "items": [
+                            step
+                            for journey in specification.user_journeys
+                            for step in journey.steps
+                        ],
+                    }
+                ],
+            },
+            {
+                "key": "questions",
+                "title": "Questions",
+                "components": [
+                    *[
+                        {
+                            "type": "card",
+                            "title": f"Open question {index + 1}",
+                            "body": question,
+                        }
+                        for index, question in enumerate(
+                            specification.open_questions
+                        )
+                    ],
+                    {
+                        "type": "form",
+                        "label": "Try a local prototype note",
+                        "placeholder": "Write a note for this session",
+                        "submit_label": "Save note locally",
+                    },
+                ],
+            },
+        ],
+    )
+    return spec.model_dump(mode="json")
 
 
 def _static_validation_results(source_files: list) -> dict:
@@ -113,7 +208,10 @@ def create_prototype_source(
         session.refresh(build)
         return build
 
-    build.plan = result.plan.model_dump(mode="json")
+    build.plan = {
+        **result.plan.model_dump(mode="json"),
+        "preview_spec": _build_preview_spec(idea, requirements),
+    }
     build.manifest = result.manifest.model_dump(mode="json")
     build.validation_results = _static_validation_results(source_files)
     build.template_id = result.plan.template_id

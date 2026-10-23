@@ -7,7 +7,9 @@ verified single-idea MVP. Cloud deployment is a later, separately approved phase
 documented; Phase 8's local persisted-workflow integration test and available
 service checks pass. The audited operator role-provisioning CLI and immutable
 audit migration are implemented and tested. The Builder cannot execute/build/
-publish without a reviewed isolation boundary. Phase 8's end-to-end test uses
+publish generated source without a reviewed isolation boundary. A separate,
+schema-driven browser preview of allowlisted components is now implemented
+against persisted requirement and prototype records. Phase 8's end-to-end test uses
 deterministic provider doubles; live model inference is unverified. Trust has
 only partial feedback-level evidence. V2 remains Draft/source-only. Production
 operator governance, live-provider analysis, isolated builds, deployment-grade
@@ -307,6 +309,18 @@ mocked output proves real-provider acceptance.
 - [x] Generate typed screen/component plans, a manifest, and separate React/TypeScript/JSON/CSS source.
 - [x] Store explicit features, requirements provenance, limitations, source hashes, and source metadata.
 - [x] Validate file paths, traversal, source capabilities/imports, scripts, dependencies, required files, and source size.
+
+### Schema-driven Browser Preview
+
+- [x] Persist an explicit, typed, allowlisted UI specification with each immutable prototype record.
+- [x] Render headings, text, cards, feature search, journey checklists, local note forms, and bounded buttons with React.
+- [x] Keep user/model text as ordinary React text; reject unknown component kinds and extra properties.
+- [x] Preserve prototype/version/requirement-analysis associations and owner-only API access.
+- [x] Keep source execution, build, and publication disabled and clearly distinct from this browser preview.
+
+The preview is a usable local interactive representation of validated requirements.
+It is not an execution or build of generated React source and does not unblock
+isolated build/publish acceptance.
 
 ### Isolation: Required Before Any Generated Build Runs
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -242,6 +242,95 @@ class PrototypePlanResponse(BaseModel):
     category: Literal["education-placement"]
     screens: list[PrototypeScreenPlan] = Field(min_length=4, max_length=4)
     limitations: list[str] = Field(min_length=1, max_length=8)
+    preview_spec: "PrototypePreviewSpec | None" = None
+
+
+class PreviewHeading(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["heading"]
+    text: str = Field(min_length=1, max_length=500)
+
+
+class PreviewText(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["text"]
+    text: str = Field(min_length=1, max_length=2_000)
+
+
+class PreviewCard(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["card"]
+    title: str = Field(min_length=1, max_length=180)
+    body: str = Field(min_length=1, max_length=2_000)
+
+
+class PreviewSearch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["search"]
+    label: str = Field(min_length=1, max_length=120)
+    items: list[str] = Field(max_length=30)
+
+
+class PreviewChecklist(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["checklist"]
+    title: str = Field(min_length=1, max_length=180)
+    items: list[str] = Field(max_length=30)
+
+
+class PreviewForm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["form"]
+    label: str = Field(min_length=1, max_length=180)
+    placeholder: str = Field(min_length=1, max_length=240)
+    submit_label: str = Field(min_length=1, max_length=80)
+
+
+class PreviewButton(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["button"]
+    label: str = Field(min_length=1, max_length=80)
+    action: Literal["mark-complete"]
+
+
+PrototypePreviewComponent = Annotated[
+    PreviewHeading
+    | PreviewText
+    | PreviewCard
+    | PreviewSearch
+    | PreviewChecklist
+    | PreviewForm
+    | PreviewButton,
+    Field(discriminator="type"),
+]
+
+
+class PrototypePreviewScreen(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: Literal["overview", "features", "journeys", "questions"]
+    title: str = Field(min_length=1, max_length=100)
+    components: list[PrototypePreviewComponent] = Field(min_length=1, max_length=12)
+
+
+class PrototypePreviewSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    schema_version: Literal["1"]
+    source_version: int = Field(ge=1)
+    requirement_analysis_id: str = Field(min_length=36, max_length=36)
+    title: str = Field(min_length=1, max_length=160)
+    screens: list[PrototypePreviewScreen] = Field(min_length=1, max_length=4)
+
+
+PrototypePlanResponse.model_rebuild()
+
+
+class ReviewerPrototypePreviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    prototype_build_id: str
+    idea_version_id: str
+    source_version: int = Field(ge=1)
+    requirement_analysis_run_id: str
+    preview_spec: PrototypePreviewSpec
 
 
 class PrototypeManifestResponse(BaseModel):

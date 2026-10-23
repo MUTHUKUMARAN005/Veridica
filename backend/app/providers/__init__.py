@@ -1,7 +1,7 @@
 """External provider boundaries used by local and production implementations."""
 
 from app.config import Settings
-from app.providers.base import ChatProvider, ProviderConfigurationError
+from app.providers.base import ChatProvider, EmbeddingProvider, ProviderConfigurationError
 from app.providers.gemini import GeminiProvider
 from app.providers.ollama import OllamaProvider
 

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { Heart, MessageCircle, Send, ThumbsUp } from 'lucide-react'
-import { addComment, interestSummary, previewActor, rankPriorities, recordSignal, toggleCommentSupport } from '../services/preview'
-import type { Idea, IdeaComment } from '../services/preview'
-import { useWorkspace } from '../services/workspace'
-import { Badge, dateLabel } from './ui'
+import { addComment, interestSummary, previewActor, rankPriorities, recordSignal, toggleCommentSupport } from '@/services/preview'
+import type { Idea, IdeaComment } from '@/services/preview'
+import { useWorkspace } from '@/services/workspace'
+import { Badge, dateLabel } from '@/components/ui'
 
 export function InterestSignals({ idea }: { idea: Idea }) {
   const { state, update, role } = useWorkspace()

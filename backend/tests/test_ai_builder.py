@@ -20,8 +20,15 @@ from app.agents.ai_builder import (
 )
 from app.config import Settings
 from app.main import create_app
-from app.models import Base, PrototypeBuild, RequirementAnalysisRun, User
-from app.schemas import RequirementSpecification
+from app.models import (
+    Base,
+    PrototypeBuild,
+    RequirementAnalysisRun,
+    ReviewerAssignment,
+    ReviewCycle,
+    User,
+)
+from app.schemas import PrototypePreviewSpec, RequirementSpecification
 
 
 def valid_requirements() -> RequirementSpecification:
@@ -137,6 +144,62 @@ def test_builder_rejects_unsafe_source_and_missing_required_files():
     }
     with pytest.raises(PrototypeValidationError, match="unapproved import"):
         validate_generated_files(unapproved_import)
+
+
+def test_preview_spec_rejects_unknown_components_and_properties():
+    base = {
+        "schema_version": "1",
+        "source_version": 1,
+        "requirement_analysis_id": str(uuid4()),
+        "title": "Campus Compass",
+        "screens": [{
+            "key": "overview",
+            "title": "Overview",
+            "components": [{"type": "text", "text": "Validated text."}],
+        }],
+    }
+    assert PrototypePreviewSpec.model_validate(base).screens[0].components[0].type == "text"
+    with pytest.raises(ValueError):
+        PrototypePreviewSpec.model_validate({
+            **base,
+            "screens": [{
+                "key": "overview",
+                "title": "Overview",
+                "components": [{"type": "script", "source": "alert(1)"}],
+            }],
+        })
+    with pytest.raises(ValueError):
+        PrototypePreviewSpec.model_validate({
+            **base,
+            "screens": [{
+                "key": "overview",
+                "title": "Overview",
+                "components": [{
+                    "type": "text",
+                    "text": "Visible label",
+                    "onClick": "alert(1)",
+                }],
+            }],
+        })
+
+
+def test_preview_spec_keeps_injection_like_content_as_plain_text():
+    payload = {
+        "schema_version": "1",
+        "source_version": 1,
+        "requirement_analysis_id": str(uuid4()),
+        "title": "Example",
+        "screens": [{
+            "key": "overview",
+            "title": "Overview",
+            "components": [{
+                "type": "text",
+                "text": "<img src=x onerror=alert(1)>",
+            }],
+        }],
+    }
+    spec = PrototypePreviewSpec.model_validate(payload)
+    assert spec.screens[0].components[0].text == "<img src=x onerror=alert(1)>"
 
 
 def test_generated_source_integrity_reports_missing_artifact(tmp_path):
@@ -275,6 +338,10 @@ def test_prototype_api_is_owner_scoped_persisted_and_build_blocked(tmp_path):
         assert data["publish_status"] == "unpublished"
         assert data["preview_url"] is None
         assert data["artifact_metadata"]["built_artifact_available"] is False
+        assert data["plan"]["preview_spec"]["source_version"] == 1
+        assert data["plan"]["preview_spec"]["requirement_analysis_id"] == requirement_id
+        assert data["plan"]["preview_spec"]["screens"][1]["components"][0]["type"] == "search"
+        assert client.get(path, headers=owner["headers"]).json()["id"] == data["id"]
         assert client.get(
             f"{path}/{data['id']}/source",
             headers=owner["headers"],
@@ -287,11 +354,78 @@ def test_prototype_api_is_owner_scoped_persisted_and_build_blocked(tmp_path):
             f"{path}/{data['id']}",
             headers=other["headers"],
         ).status_code == 404
+        assert client.get(
+            f"{path}/{data['id']}",
+            headers=reviewer["headers"],
+        ).status_code == 403
         with client.app.state.session_factory() as session:
             persisted = session.get(PrototypeBuild, data["id"])
             assert persisted is not None
             assert persisted.build_status == "blocked_isolation"
             assert persisted.artifact_metadata["built_artifact_available"] is False
+
+
+def test_reviewer_preview_requires_an_active_exact_version_assignment(tmp_path):
+    client, factory = make_client(tmp_path)
+    with client:
+        owner = register(client, f"owner-{uuid4().hex}@example.invalid")
+        assigned_reviewer = register(
+            client, f"assigned-{uuid4().hex}@example.invalid", role="reviewer"
+        )
+        unassigned_reviewer = register(
+            client, f"unassigned-{uuid4().hex}@example.invalid", role="reviewer"
+        )
+        idea = create_idea(client, owner["headers"])
+        requirement_id = seed_valid_requirements(factory, idea, owner["id"])
+        prototype_path = f"/api/v1/ideas/{idea['id']}/versions/1/prototypes"
+        prototype_response = client.post(
+            prototype_path,
+            json={"requirement_analysis_id": requirement_id},
+            headers=owner["headers"],
+        )
+        assert prototype_response.status_code == 201
+        assignment_id = str(uuid4())
+        cycle_id = str(uuid4())
+        with factory() as session:
+            session.add(
+                ReviewCycle(
+                    id=cycle_id,
+                    idea_version_id=idea["version_id"],
+                    opened_by_id=owner["id"],
+                    status="open",
+                )
+            )
+            session.add(
+                ReviewerAssignment(
+                    id=assignment_id,
+                    idea_version_id=idea["version_id"],
+                    reviewer_id=assigned_reviewer["id"],
+                    assigned_by_id=owner["id"],
+                    review_cycle_id=cycle_id,
+                    active=True,
+                    status="assigned",
+                )
+            )
+            session.commit()
+
+        path = f"/api/v1/reviewer/assignments/{assignment_id}/prototype"
+        assert client.get(path).status_code == 401
+        assert client.get(path, headers=owner["headers"]).status_code == 403
+        assert client.get(path, headers=unassigned_reviewer["headers"]).status_code == 404
+        preview = client.get(path, headers=assigned_reviewer["headers"])
+        assert preview.status_code == 200, preview.text
+        assert preview.json()["idea_version_id"] == idea["version_id"]
+        assert preview.json()["source_version"] == 1
+        assert preview.json()["requirement_analysis_run_id"] == requirement_id
+        assert preview.json()["preview_spec"]["title"] == "Campus Compass"
+
+        with factory() as session:
+            assignment = session.get(ReviewerAssignment, assignment_id)
+            assert assignment is not None
+            assignment.active = False
+            assignment.status = "revoked"
+            session.commit()
+        assert client.get(path, headers=assigned_reviewer["headers"]).status_code == 404
 
 
 def test_prototype_generation_requires_validated_requirements_and_supported_category(tmp_path):
