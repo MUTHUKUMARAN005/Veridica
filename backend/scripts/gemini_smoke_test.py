@@ -13,17 +13,13 @@ Or import and call:
 """
 from __future__ import annotations
 
-import os
-import sys
-import time
 import json
+import sys
 from datetime import UTC, datetime
 
-from google import genai
-
-from app.config import Settings, load_settings
+from app.config import Settings
+from app.providers.base import ProviderConfigurationError, ProviderError
 from app.providers.gemini import GeminiProvider
-from app.providers.base import ProviderConfigurationError
 
 
 def run_smoke_test() -> dict:
@@ -32,7 +28,7 @@ def run_smoke_test() -> dict:
     Returns a dict with response metadata. No credentials are emitted in
     any output.
     """
-    settings: Settings = load_settings()
+    settings = Settings()
 
     if not settings.gemini_api_key:
         raise ProviderConfigurationError(
@@ -50,13 +46,8 @@ def run_smoke_test() -> dict:
     start = datetime.now(UTC)
 
     try:
-        # Use a minimal, harmless prompt; we only need to verify the call succeeds
-        # and we get a non-empty response. No system instruction to avoid
-        # unnecessary complexity; just a simple text generation.
         text = provider.chat(prompt="Say hello world", system="")
         latency_ms = int((datetime.now(UTC) - start).total_seconds() * 1000)
-
-        # Report last token usage if available
         token_usage = getattr(provider, "last_token_usage", None)
 
         result: dict = {
@@ -73,17 +64,18 @@ def run_smoke_test() -> dict:
 
         return result
 
-    except Exception as error:  # noqa: BLE001 - translate all SDK errors
+    except Exception as error:  # noqa: BLE001
         latency_ms = int((datetime.now(UTC) - start).total_seconds() * 1000)
-        # Classify the error category without leaking the full error message
-        from app.providers.base import _classify_error
-
-        classified = _classify_error(error, "Gemini Developer API")
+        failure_category = (
+            "retryable"
+            if isinstance(error, ProviderError) and error.retryable
+            else "provider_response"
+        )
         return {
             "status": "failed",
             "model": settings.gemini_model,
             "latency_ms": latency_ms,
-            "failure_category": classified.retryable if hasattr(classified, "retryable") else "provider_response",
+            "failure_category": failure_category,
             "error_type": type(error).__name__,
             "timestamp": datetime.now(UTC).isoformat(),
         }

@@ -13,16 +13,17 @@ down_revision = "0011"
 branch_labels = None
 depends_on = None
 
-_PROVENANCE_COLUMNS = [
-    sa.Column("duration_ms", sa.Integer(), nullable=True),
-    sa.Column("token_usage", sa.JSON(), nullable=True),
-    sa.Column("failure_category", sa.String(length=80), nullable=True),
-]
+def _provenance_columns() -> list[sa.Column]:
+    return [
+        sa.Column("duration_ms", sa.Integer(), nullable=True),
+        sa.Column("token_usage", sa.JSON(), nullable=True),
+        sa.Column("failure_category", sa.String(length=80), nullable=True),
+    ]
 
 
 def upgrade() -> None:
     for table in ("requirement_analysis_runs", "feedback_analysis_runs"):
-        for column in _PROVENANCE_COLUMNS:
+        for column in _provenance_columns():
             op.add_column(table, column)
 
 

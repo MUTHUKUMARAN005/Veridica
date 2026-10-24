@@ -18,3 +18,17 @@ def build_chat_provider(settings: Settings) -> ChatProvider:
             )
         return GeminiProvider(settings)
     return OllamaProvider(settings)
+
+
+def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
+    if settings.ai_provider == "gemini":
+        if not settings.gemini_api_key:
+            raise ProviderConfigurationError(
+                "GEMINI_API_KEY is required when AI_PROVIDER=gemini."
+            )
+        if not settings.gemini_model:
+            raise ProviderConfigurationError(
+                "GEMINI_MODEL is required when AI_PROVIDER=gemini."
+            )
+        return GeminiProvider(settings)
+    return OllamaProvider(settings)

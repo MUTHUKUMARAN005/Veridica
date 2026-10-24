@@ -11,24 +11,21 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
-    "baseUrl": "./src",
-    "ignoreDeprecations": "6.0",
+    "noEmit": true,
+    "jsx": "react-jsx",
     "paths": {
-      "@/*": ["/*"],
-      "@/services/*": ["services/*"],
-      "@/components/*": ["components/*"],
-      "@/pages/*": ["pages/*"],
-      "@/src/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     /* Linting */
+    "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/**/*.js"]
 }

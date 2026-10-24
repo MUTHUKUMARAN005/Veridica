@@ -28,17 +28,11 @@ def configured_model(settings: Settings) -> str:
     return settings.ollama_chat_model
 
 
-def _elapsed_ms(started_at: datetime) -> int:
-    return int((datetime.now(UTC) - started_at).total_seconds() * 1000)
-
-
 def mark_requirement_failed(
     factory: sessionmaker[Session],
     analysis_id: str,
     message: str,
     validation_status: str = "not_run",
-    failure_category: str | None = None,
-    duration_ms: int | None = None,
 ) -> None:
     with factory() as session:
         analysis = session.get(RequirementAnalysisRun, analysis_id)
@@ -47,9 +41,6 @@ def mark_requirement_failed(
         analysis.status = "failed"
         analysis.validation_status = validation_status
         analysis.error_message = message
-        analysis.failure_category = failure_category
-        if duration_ms is not None:
-            analysis.duration_ms = duration_ms
         analysis.completed_at = datetime.now(UTC)
         session.commit()
 
@@ -106,12 +97,9 @@ def execute_requirement_analysis(
         features=version_values["features"],
         constraints=version_values["constraints"],
     )
-    started_at = datetime.now(UTC)
-    token_usage: dict[str, int] | None = None
     try:
         provider = provider_factory(settings)
         result = analyze_requirements(version_snapshot, provider)
-        token_usage = getattr(provider, "last_token_usage", None)
     except RetryableProviderError as error:
         with factory() as session:
             analysis = session.get(RequirementAnalysisRun, analysis_id)
@@ -122,40 +110,19 @@ def execute_requirement_analysis(
             session.commit()
         raise
     except ProviderConfigurationError as error:
-        mark_requirement_failed(
-            factory,
-            analysis_id,
-            str(error),
-            failure_category="configuration",
-            duration_ms=_elapsed_ms(started_at),
-        )
+        mark_requirement_failed(factory, analysis_id, str(error))
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except ProviderError as error:
-        mark_requirement_failed(
-            factory,
-            analysis_id,
-            str(error),
-            failure_category="provider_response",
-            duration_ms=_elapsed_ms(started_at),
-        )
+        mark_requirement_failed(factory, analysis_id, str(error))
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except RequirementOutputValidationError as error:
-        mark_requirement_failed(
-            factory,
-            analysis_id,
-            str(error),
-            "invalid",
-            failure_category="validation",
-            duration_ms=_elapsed_ms(started_at),
-        )
+        mark_requirement_failed(factory, analysis_id, str(error), "invalid")
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except Exception:
         mark_requirement_failed(
             factory,
             analysis_id,
             "The requirement workflow encountered an unexpected internal error.",
-            failure_category="unexpected",
-            duration_ms=_elapsed_ms(started_at),
         )
         raise
 
@@ -168,10 +135,5 @@ def execute_requirement_analysis(
         analysis.validation_status = "valid"
         analysis.error_message = None
         analysis.completed_at = datetime.now(UTC)
-        if analysis.started_at is not None:
-            analysis.duration_ms = int(
-                (analysis.completed_at - analysis.started_at).total_seconds() * 1000
-            )
-        analysis.token_usage = token_usage
         session.commit()
         return {"status": analysis.status, "workflow_run_id": analysis.workflow_run_id}

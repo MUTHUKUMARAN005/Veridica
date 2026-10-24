@@ -7,9 +7,11 @@ import { SchemaPrototypePreview } from '@/components/SchemaPrototypePreview'
 import { addReview } from '@/services/preview'
 import type { Idea, Review } from '@/services/preview'
 import { useWorkspace } from '@/services/workspace'
-import { Badge, Empty, Modal, PageHeading, Status } from '@/components/ui'
+import { Badge, Empty, ErrorBanner, LoadingState, Modal, PageHeading, Status } from '@/components/ui'
 import { IdeaDiscussion } from '@/components/IdeaDiscussion'
 import { getAccessToken } from '@/services/auth'
+import { getIdea, getLatestPrototypeSource } from '@/services/ideas'
+import type { ApiIdeaDetail, PrototypeBuild } from '@/services/ideas'
 import { getReviewerAssignment, getReviewerPrototypePreview, startReviewerSession, submitReviewerReview } from '@/services/authorization'
 import type { ApiReview, ReviewerAssignment, ReviewerPrototypePreview, ReviewSubmission } from '@/services/authorization'
 
@@ -49,15 +51,68 @@ export function PrototypeDemo({ idea, onInteraction = () => undefined, proposed 
 export function PrototypeWorkspace() {
   const { id } = useParams()
   const { state } = useWorkspace()
-  const idea = state.ideas.find((candidate) => candidate.id === id)
   const [size, setSize] = useState('desktop')
   const [tab, setTab] = useState('Prototype')
+  const [apiIdea, setApiIdea] = useState<ApiIdeaDetail | null>(null)
+  const [apiBuild, setApiBuild] = useState<PrototypeBuild | null>(null)
+  const [loading, setLoading] = useState(Boolean(getAccessToken()))
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!id || !getAccessToken()) return
+    let active = true
+    setLoading(true)
+    getIdea(id)
+      .then(async (ideaDetail) => {
+        if (!active) return
+        setApiIdea(ideaDetail)
+        const latestBuild = await getLatestPrototypeSource(ideaDetail.id, ideaDetail.version).catch(() => null)
+        if (active) setApiBuild(latestBuild)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Prototype workspace could not be loaded.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [id])
+
+  if (getAccessToken()) {
+    if (loading) return <LoadingState title="Loading prototype workspace…" detail="Preparing your interactive prototype preview." />
+    if (error || !apiIdea) return <Empty title="Prototype unavailable">{error && <ErrorBanner message={error} />}<Link className="button" to="/ideas">Back to ideas</Link></Empty>
+    return <>
+      <Link className="back-link" to={`/ideas/${apiIdea.id}`}><ArrowLeft size={15} />{apiIdea.title}</Link>
+      <PageHeading eyebrow="PROTOTYPE WORKSPACE" title={apiIdea.title} actions={<Link className="button" to={`/ideas/${apiIdea.id}`}>Idea details<ArrowRight size={15} /></Link>}>
+        <span>Version {apiIdea.version} · {apiBuild?.plan ? 'Interactive prototype ready' : 'Awaiting prototype generation'}</span>
+      </PageHeading>
+      <div className="prototype-toolbar">
+        <div className="tabs" role="tablist">
+          {['Prototype', 'Feature brief'].map((value) => <button role="tab" aria-selected={tab === value} key={value} onClick={() => setTab(value)}>{value}</button>)}
+        </div>
+        <div className="segmented" aria-label="Preview size">
+          <button aria-label="Desktop preview" title="Desktop preview" aria-pressed={size === 'desktop'} onClick={() => setSize('desktop')}><Monitor size={16} /></button>
+          <button aria-label="Mobile preview" title="Mobile preview" aria-pressed={size === 'mobile'} onClick={() => setSize('mobile')}><Smartphone size={16} /></button>
+        </div>
+      </div>
+      {tab === 'Prototype' && (apiBuild?.plan?.preview_spec
+        ? <div className={`prototype-stage ${size}`}><SchemaPrototypePreview spec={apiBuild.plan.preview_spec} /></div>
+        : <Empty title="Prototype not generated yet"><p>Generate requirements and prepare the interactive prototype from the Requirements tab on your idea details page.</p><Link className="button primary" to={`/ideas/${apiIdea.id}`}>Go to idea details</Link></Empty>)}
+      {tab === 'Feature brief' && <div className="prose-section">
+        <h2>Prototype scope</h2>
+        <p>{apiIdea.solution}</p>
+        <div className="feature-grid">{apiIdea.features.map((feature) => <div key={feature}><Check size={15} /><h3>{feature}</h3></div>)}</div>
+        <h2>Known constraints</h2>
+        <p>{apiIdea.constraints || 'No additional constraints specified.'}</p>
+      </div>}
+    </>
+  }
+
+  const idea = state.ideas.find((candidate) => candidate.id === id)
   if (!idea) return <Empty title="Prototype not found" />
   const available = ['placement', 'circular'].includes(idea.id)
-  return <><Link className="back-link" to={`/ideas/${idea.id}`}><ArrowLeft size={15} />{idea.title}</Link><PageHeading eyebrow="PROTOTYPE WORKSPACE" title={idea.title} actions={<Link className="button" to={`/ideas/${idea.id}`}>Idea details<ArrowRight size={15} /></Link>}><span>V{idea.version} · {available ? 'Controlled sample template' : 'Awaiting a validated build'}</span></PageHeading><div className="prototype-toolbar"><div className="tabs" role="tablist">{['Prototype', 'Feature brief', 'Build details'].map((value) => <button role="tab" aria-selected={tab === value} key={value} onClick={() => setTab(value)}>{value}</button>)}</div><div className="segmented" aria-label="Preview size"><button aria-label="Desktop preview" title="Desktop preview" aria-pressed={size === 'desktop'} onClick={() => setSize('desktop')}><Monitor size={16} /></button><button aria-label="Mobile preview" title="Mobile preview" aria-pressed={size === 'mobile'} onClick={() => setSize('mobile')}><Smartphone size={16} /></button></div></div>
-    {tab === 'Prototype' && (available ? <div className={`prototype-stage ${size}`}><PrototypeDemo idea={idea} /></div> : <Empty title="No generated prototype yet"><p>Your idea is saved. A Python requirement and build workflow must produce a validated artifact before this idea can be reviewed.</p><Badge>Builder not connected</Badge></Empty>)}
-    {tab === 'Feature brief' && <div className="prose-section"><h2>Prototype scope</h2><p>{idea.solution}</p><div className="feature-grid">{idea.features.map((feature) => <div key={feature}><Check size={15} /><h3>{feature}</h3></div>)}</div><h2>Known limitations</h2><p>{idea.constraints}</p><p>These are hand-authored sample templates, not AI-generated artifacts. Interactions reset when the prototype is closed.</p></div>}
-    {tab === 'Build details' && <><div className="notice"><Code2 size={20} /><div><strong>No AI build has run</strong><p>Python Builder Agent, artifact hosting, logs, model version, and workflow run are awaiting backend integration.</p></div></div><div className="metadata-grid">{[['Template', available ? idea.id === 'placement' ? 'Education workspace' : 'Neighborhood reporting' : 'Not selected'], ['Source', available ? 'Hand-authored frontend sample' : 'Owner idea draft'], ['Artifact URL', 'Not generated'], ['Validation status', 'No builder validation run'], ['Model / prompt version', 'Not applicable'], ['Workflow run', 'Not started']].map(([label, value]) => <div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div></>}
+  return <><Link className="back-link" to={`/ideas/${idea.id}`}><ArrowLeft size={15} />{idea.title}</Link><PageHeading eyebrow="PROTOTYPE WORKSPACE" title={idea.title} actions={<Link className="button" to={`/ideas/${idea.id}`}>Idea details<ArrowRight size={15} /></Link>}><span>V{idea.version} · {available ? 'Interactive sample prototype' : 'Awaiting prototype preparation'}</span></PageHeading><div className="prototype-toolbar"><div className="tabs" role="tablist">{['Prototype', 'Feature brief', 'Prototype info'].map((value) => <button role="tab" aria-selected={tab === value} key={value} onClick={() => setTab(value)}>{value}</button>)}</div><div className="segmented" aria-label="Preview size"><button aria-label="Desktop preview" title="Desktop preview" aria-pressed={size === 'desktop'} onClick={() => setSize('desktop')}><Monitor size={16} /></button><button aria-label="Mobile preview" title="Mobile preview" aria-pressed={size === 'mobile'} onClick={() => setSize('mobile')}><Smartphone size={16} /></button></div></div>
+    {tab === 'Prototype' && (available ? <div className={`prototype-stage ${size}`}><PrototypeDemo idea={idea} /></div> : <Empty title="No generated prototype yet"><p>Your idea is saved. Generate requirements and prepare a prototype to preview it here.</p><Badge>Prototype pending</Badge></Empty>)}
+    {tab === 'Feature brief' && <div className="prose-section"><h2>Prototype scope</h2><p>{idea.solution}</p><div className="feature-grid">{idea.features.map((feature) => <div key={feature}><Check size={15} /><h3>{feature}</h3></div>)}</div><h2>Known limitations</h2><p>{idea.constraints}</p><p>Sample preview interactions reset when the prototype is closed.</p></div>}
+    {tab === 'Prototype info' && <><div className="notice"><Code2 size={20} /><div><strong>Controlled interactive preview</strong><p>Reviewers test this version-locked interface so all feedback applies to the same experience.</p></div></div><div className="metadata-grid">{[['Template', available ? idea.id === 'placement' ? 'Education workspace' : 'Neighborhood reporting' : 'Not selected'], ['Source', available ? 'Interactive sample' : 'Owner idea draft'], ['Version', `V${idea.version}`], ['Status', available ? 'Ready for review' : 'Awaiting preparation']].map(([label, value]) => <div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div></>}
   </>
 }
 
@@ -167,8 +222,8 @@ function ApiReviewWorkspace({ assignmentId }: { assignmentId: string }) {
     }
   }
 
-  if (loading) return <div role="status" className="empty">Loading assigned version...</div>
-  if (error && !assignment) return <Empty title="Assignment unavailable"><p role="alert">{error}</p><Link className="button" to="/reviews">Back to your queue</Link></Empty>
+  if (loading) return <LoadingState title="Loading assigned version…" detail="Preparing the prototype and review form for your session." />
+  if (error && !assignment) return <Empty title="Assignment unavailable"><ErrorBanner message={error} /><Link className="button" to="/reviews">Back to your queue</Link></Empty>
   if (!assignment) return <Empty title="Assignment unavailable"><Link className="button" to="/reviews">Back to your queue</Link></Empty>
   function updateForm<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
     if (!submitting) idempotencyKey.current = null
@@ -209,26 +264,38 @@ function ApiReviewWorkspace({ assignmentId }: { assignmentId: string }) {
       }, review.idempotency_key)
       setAssignment((current) => current ? { ...current, feedback: retried } : current)
     } catch (reason) {
-      setHandoffError(reason instanceof Error ? reason.message : 'The background handoff could not be retried.')
+      setHandoffError(reason instanceof Error ? reason.message : 'The background sync could not be retried.')
     } finally {
       setRetryingHandoff(false)
     }
   }
   function reviewReceipt(review: ApiReview) {
-    return <div className="review-success"><CheckCheck size={36} /><h2>Your review is recorded.</h2><p>This authenticated review is stored against assignment {assignment?.id} and version {assignment?.version}. No trust or authenticity result is inferred.</p><Badge tone="green">Review submitted</Badge><p><strong>Overall rating:</strong> {review.rating}/5</p><p>{review.feedback_text}</p><p><strong>Background status:</strong> {review.analysis_status === 'received' ? 'Queue request received; analysis has not run.' : review.analysis_status === 'queued' ? 'Queue request sent; analysis has not run.' : review.analysis_error ? 'Queue handoff failed; the feedback remains safely stored.' : 'Queue handoff is pending; analysis has not run.'}</p>{review.analysis_error && <><p role="alert" className="error">{review.analysis_error}</p><p>{handoffError && <span role="alert" className="error">{handoffError}</span>}</p><button className="button" disabled={retryingHandoff} onClick={() => void retryBackgroundHandoff()}>{retryingHandoff ? 'Retrying handoff...' : 'Retry background handoff'}</button></>}</div>
+    return <div className="review-success">
+      <CheckCheck size={36} />
+      <h2>Your review is recorded.</h2>
+      <p>Thank you for reviewing {assignment?.idea_title} (Version {assignment?.version}). Your structured feedback has been saved.</p>
+      <Badge tone="green">Review submitted</Badge>
+      <p><strong>Overall rating:</strong> {review.rating}/5</p>
+      <p>{review.feedback_text}</p>
+      {review.analysis_error && <>
+        <ErrorBanner message={handoffError || review.analysis_error} onRetry={retryBackgroundHandoff} />
+        <button className="button" disabled={retryingHandoff} onClick={() => void retryBackgroundHandoff()}>{retryingHandoff ? 'Retrying…' : 'Retry background sync'}</button>
+      </>}
+      <Link className="button primary" to="/reviews">Back to your queue<ArrowRight size={15} /></Link>
+    </div>
   }
   return <><Link className="back-link" to="/reviews"><ArrowLeft size={15} />Your review queue</Link>
-    <PageHeading eyebrow="AUTHENTICATED REVIEW" title={assignment.idea_title}>Version {assignment.version} · Assigned specifically to your account.</PageHeading>
-    <div className="notice"><ShieldCheck size={20} /><div><strong>Review the submitted idea version</strong><p>This form records structured review of the assigned version only. Any preview is limited to the saved, allowlisted browser specification.</p></div></div>
-    {error && <p role="alert" className="error">{error}</p>}
+    <PageHeading eyebrow="REVIEW WORKSPACE" title={assignment.idea_title} actions={<Status value={assignment.status} />}>Version {assignment.version} · Assigned to your account.</PageHeading>
+    <div className="notice"><ShieldCheck size={20} /><div><strong>Review this specific version</strong><p>Explore the interactive prototype below and share your structured feedback on Version {assignment.version}.</p></div></div>
+    {error && <ErrorBanner message={error} />}
     <section className="prose-section"><h2>Problem</h2><p>{assignment.problem}</p><h2>Proposed solution</h2><p>{assignment.solution}</p><h2>Intended audience</h2><p>{assignment.audience}</p><h2>Features</h2><ul>{assignment.features.map((feature) => <li key={feature}>{feature}</li>)}</ul><h2>Constraints</h2><p>{assignment.constraints || 'No constraints provided.'}</p></section>
     {prototypePreview
       ? <SchemaPrototypePreview spec={prototypePreview.preview_spec} />
-      : <p className="muted">No validated browser preview is available for this assigned version.</p>}
+      : <p className="muted">No interactive prototype preview is attached to this version yet.</p>}
     {assignment.review_submitted && assignment.feedback
       ? reviewReceipt(assignment.feedback)
       : <form className="review-form" onSubmit={submit}><h2>Your review</h2>
-        {error && <p role="alert" className="error">{error}</p>}
+        {error && <ErrorBanner message={error} />}
         {!assignment.review_session && <><p role="status">A review session is required before feedback can be submitted.</p><button type="button" className="button" onClick={() => void retrySessionStart()}>Retry session startup</button></>}
         {(['rating', 'usability_score', 'usefulness_score', 'completeness_score', 'feasibility_score'] as const).map((field) => <label key={field}>{field === 'rating' ? 'Overall rating' : field.replace('_score', '').replaceAll('_', ' ').replace(/^\w/, (letter) => letter.toUpperCase())}<select required disabled={submitting || !assignment.review_session} value={form[field] || ''} onChange={(event) => updateForm(field, Number(event.target.value))}><option value="">Select a rating</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value} / 5</option>)}</select></label>)}
         <label>Would you use this product?<select required disabled={submitting || !assignment.review_session} value={form.would_use === null ? '' : String(form.would_use)} onChange={(event) => updateForm('would_use', event.target.value === '' ? null : event.target.value === 'true')}><option value="">Choose an answer</option><option value="true">Yes</option><option value="false">No</option></select></label>
@@ -239,7 +306,7 @@ function ApiReviewWorkspace({ assignmentId }: { assignmentId: string }) {
           ['suggested_improvements', 'Suggested improvements'],
           ['usage_context', 'Usage context'],
         ] as const).map(([field, label]) => <label key={field}>{label}<textarea disabled={submitting || !assignment.review_session} required minLength={10} maxLength={5000} rows={field === 'feedback_text' ? 5 : 3} value={form[field]} onChange={(event) => updateForm(field, event.target.value)} /></label>)}
-        <button className="button primary" disabled={submitting || !assignment.review_session}>{submitting ? 'Submitting...' : error ? 'Retry review submission' : 'Submit review'}<Send size={15} /></button>
+        <button className="button primary" disabled={submitting || !assignment.review_session}>{submitting ? 'Submitting…' : error ? 'Retry review submission' : 'Submit review'}<Send size={15} /></button>
       </form>}
   </>
 }
@@ -254,14 +321,14 @@ function PreviewReviewWorkspace() {
   const { register, handleSubmit, watch, formState: { errors } } = useForm<ReviewForm>()
   const existing = state.reviews.find((review) => review.ideaId === id && review.reviewer === 'Maya Chen' && !review.sample)
   if (!idea || !state.assignments.some((assignment) => assignment.ideaId === id && assignment.reviewer === 'Maya Chen')) return <Empty title="This project is not assigned to the preview reviewer"><Link className="button" to="/reviews">Review queue</Link></Empty>
-  if (existing) return <><PageHeading eyebrow="REVIEWER PORTAL" title="Your perspective is recorded." /><div className="review-success"><CheckCheck size={40} /><h2>Thank you for testing {idea.title}.</h2><p>Your feedback is saved in this browser. AI analysis has not run.</p><Badge tone="green">V{existing.version} · Local review</Badge><blockquote>{existing.improvements}</blockquote><Link className="button primary" to="/reviews">Back to your queue<ArrowRight size={15} /></Link></div><IdeaDiscussion key={idea.id} idea={idea} /></>
+  if (existing) return <><PageHeading eyebrow="REVIEWER PORTAL" title="Your perspective is recorded." /><div className="review-success"><CheckCheck size={40} /><h2>Thank you for testing {idea.title}.</h2><p>Your feedback is saved in this workspace.</p><Badge tone="green">V{existing.version} · Local review</Badge><blockquote>{existing.improvements}</blockquote><Link className="button primary" to="/reviews">Back to your queue<ArrowRight size={15} /></Link></div><IdeaDiscussion key={idea.id} idea={idea} /></>
   const tasks = idea.id === 'placement' ? ['Explore an opportunity', 'Try the resume checklist', 'Inspect the preparation roadmap'] : ['Open the collection schedule', 'Submit a sample issue', 'Inspect the recorded request']
   function submit(values: ReviewForm) {
     if (!idea || !interacted || journey.length !== tasks.length) { notify('Use the prototype and complete the test journey before submitting.'); return }
     const review: Review = { id: crypto.randomUUID(), ideaId: idea.id, version: idea.version, reviewer: 'Maya Chen', rating: Number(values.rating), usability: Number(values.usability), usefulness: Number(values.usefulness), feasibility: Number(values.feasibility), completeness: Number(values.completeness), wouldUse: values.wouldUse === 'yes', strengths: values.strengths, concerns: values.concerns, improvements: values.improvements, context: values.context, created: new Date().toISOString(), sample: false }
     try {
       const next = addReview(state, review)
-      update(() => ({ ...next, audit: [{ id: crypto.randomUUID(), action: 'Local review submitted', entity: idea.title, created: review.created }, ...next.audit] }), 'Feedback saved locally. Analysis is pending Python integration.')
+      update(() => ({ ...next, audit: [{ id: crypto.randomUUID(), action: 'Local review submitted', entity: idea.title, created: review.created }, ...next.audit] }), 'Feedback saved to your workspace.')
     } catch (error) { notify(error instanceof Error ? error.message : 'Review could not be saved.') }
   }
   return <><Link className="back-link" to="/reviews"><ArrowLeft size={15} />Your review queue</Link><PageHeading eyebrow="REVIEW WORKSPACE" title={idea.title} actions={<Status value={idea.status} />}>Prototype V{idea.version} · Assigned to Maya Chen</PageHeading>

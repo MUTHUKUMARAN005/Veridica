@@ -59,10 +59,6 @@ def configured_embedding_dimensions(settings: Settings) -> int:
     return settings.ollama_embedding_dimensions
 
 
-def _elapsed_ms(started_at: datetime) -> int:
-    return int((datetime.now(UTC) - started_at).total_seconds() * 1000)
-
-
 def source_evidence(review: IdeaReview) -> dict:
     return {
         "feedback_id": review.id,
@@ -137,8 +133,6 @@ def _mark_failed(
     run_id: str,
     message: str,
     validation_status: str = "not_run",
-    failure_category: str | None = None,
-    duration_ms: int | None = None,
 ) -> None:
     with factory() as session:
         run = session.get(FeedbackAnalysisRun, run_id)
@@ -147,9 +141,6 @@ def _mark_failed(
         run.status = "failed"
         run.validation_status = validation_status
         run.error_message = message
-        run.failure_category = failure_category
-        if duration_ms is not None:
-            run.duration_ms = duration_ms
         run.completed_at = datetime.now(UTC)
         session.commit()
 
@@ -158,13 +149,8 @@ def mark_feedback_analysis_failed(
     factory: sessionmaker[Session],
     run_id: str,
     message: str,
-    failure_category: str | None = None,
-    duration_ms: int | None = None,
 ) -> None:
-    _mark_failed(
-        factory, run_id, message, failure_category=failure_category,
-        duration_ms=duration_ms,
-    )
+    _mark_failed(factory, run_id, message)
 
 
 def _load_embeddings(
@@ -304,8 +290,6 @@ def execute_feedback_analysis(
         run.error_message = None
         session.commit()
 
-    started_at = datetime.now(UTC)
-    token_usage: dict[str, int] | None = None
     try:
         chat_provider = provider_factory(settings)
         agents = run_feedback_agent_graph(
@@ -313,7 +297,6 @@ def execute_feedback_analysis(
             evidence=evidence,
             idea_context=idea_context,
         )
-        token_usage = getattr(chat_provider, "last_token_usage", None)
         with factory() as session:
             vectors = _load_embeddings(
                 session, evidence, settings, embedding_provider_factory
@@ -341,40 +324,19 @@ def execute_feedback_analysis(
             session.commit()
         raise
     except ProviderConfigurationError as error:
-        _mark_failed(
-            factory,
-            run_id,
-            str(error),
-            failure_category="configuration",
-            duration_ms=_elapsed_ms(started_at),
-        )
+        _mark_failed(factory, run_id, str(error))
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except ProviderError as error:
-        _mark_failed(
-            factory,
-            run_id,
-            str(error),
-            failure_category="provider_response",
-            duration_ms=_elapsed_ms(started_at),
-        )
+        _mark_failed(factory, run_id, str(error))
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except FeedbackAnalysisValidationError as error:
-        _mark_failed(
-            factory,
-            run_id,
-            str(error),
-            "invalid",
-            failure_category="validation",
-            duration_ms=_elapsed_ms(started_at),
-        )
+        _mark_failed(factory, run_id, str(error), "invalid")
         return {"status": "failed", "workflow_run_id": workflow_run_id}
     except Exception:
         _mark_failed(
             factory,
             run_id,
             "The feedback intelligence workflow encountered an unexpected internal error.",
-            failure_category="unexpected",
-            duration_ms=_elapsed_ms(started_at),
         )
         raise
 
@@ -387,10 +349,5 @@ def execute_feedback_analysis(
         run.validation_status = "valid"
         run.error_message = None
         run.completed_at = datetime.now(UTC)
-        if run.started_at is not None:
-            run.duration_ms = int(
-                (run.completed_at - run.started_at).total_seconds() * 1000
-            )
-        run.token_usage = token_usage
         session.commit()
         return {"status": run.status, "workflow_run_id": workflow_run_id}

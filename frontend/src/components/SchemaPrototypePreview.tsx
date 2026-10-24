@@ -3,13 +3,15 @@ import type { FormEvent } from 'react'
 import type { PrototypePreviewSpec } from '../services/ideas'
 
 export function SchemaPrototypePreview({ spec }: { spec: PrototypePreviewSpec }) {
-  const [screenKey, setScreenKey] = useState(spec.screens[0]?.key ?? 'overview')
+  const screens = Array.isArray(spec?.screens) ? spec.screens : []
+  const [screenKey, setScreenKey] = useState(screens[0]?.key ?? 'overview')
   const [query, setQuery] = useState('')
   const [checked, setChecked] = useState<string[]>([])
   const [note, setNote] = useState('')
   const [savedNote, setSavedNote] = useState(false)
   const [complete, setComplete] = useState(false)
-  const screen = spec.screens.find((item) => item.key === screenKey) ?? spec.screens[0]
+  const screen = screens.find((item) => item.key === screenKey) ?? screens[0]
+  const components = Array.isArray(screen?.components) ? screen.components : []
   if (!screen) return <p className="muted">This prototype has no supported screens.</p>
 
   function submitNote(event: FormEvent<HTMLFormElement>) {
@@ -20,11 +22,11 @@ export function SchemaPrototypePreview({ spec }: { spec: PrototypePreviewSpec })
 
   return <section className="schema-prototype" aria-label="Schema-driven prototype preview">
     <div className="notice">
-      <strong>Interactive browser preview · V{spec.source_version}</strong>
-      <p>Rendered from the persisted, allowlisted specification. Generated source is not executed.</p>
+      <strong>Interactive prototype preview · Version {spec.source_version}</strong>
+      <p>Explore the screens and user flows below to evaluate this version.</p>
     </div>
     <nav className="schema-prototype-nav" aria-label="Prototype screens">
-      {spec.screens.map((item) => <button
+      {screens.map((item) => <button
         type="button"
         className="button"
         aria-current={screen.key === item.key ? 'page' : undefined}
@@ -34,7 +36,7 @@ export function SchemaPrototypePreview({ spec }: { spec: PrototypePreviewSpec })
     </nav>
     <div className="schema-prototype-screen">
       <h3>{screen.title}</h3>
-      {screen.components.map((component, index) => {
+      {components.map((component, index) => {
         const key = `${screen.key}-${component.type}-${index}`
         switch (component.type) {
           case 'heading':

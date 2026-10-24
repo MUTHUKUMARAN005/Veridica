@@ -189,6 +189,9 @@ class RequirementAnalysisRun(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    token_usage: Mapped[dict | None] = mapped_column(JSON)
+    failure_category: Mapped[str | None] = mapped_column(String(80))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -480,6 +483,9 @@ class FeedbackAnalysisRun(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    token_usage: Mapped[dict | None] = mapped_column(JSON)
+    failure_category: Mapped[str | None] = mapped_column(String(80))
 
 
 class FeedbackEmbedding(Base):

@@ -116,32 +116,6 @@ def analyze_requirement_run(self, analysis_id: str) -> dict[str, str]:
     max_retries=3,
 )
 def analyze_feedback_run(self, analysis_id: str) -> dict[str, str]:
-        
-    pass
-def generate_prototype_task(requirement_analysis_run_id: str, idea_version_id: str, storage_dir: str) -> dict[str, str]:
-    """Celery task to generate prototype source code from requirement analysis."""
-    from app.db import session_factory
-    from app.services.prototypes import create_prototype_source, get_requirement_run_for_version
-
-    factory = session_factory()
-    with factory() as session:
-        requirement_run = get_requirement_run_for_version(session, idea_version_id, requirement_analysis_run_id)
-        if requirement_run is None:
-            return {"status": "failed", "error": "Requirement analysis run not found"}
-
-        idea_version = session.get(IdeaVersion, idea_version_id)
-        if idea_version is None:
-            return {"status": "failed", "error": "Idea version not found"}
-
-        build = create_prototype_source(
-            session,
-            idea_version,
-            requirement_run,
-            storage_dir,
-        )
-        session.commit()
-        session.refresh(build)
-        return {"status": "completed", "prototype_id": str(build.id)}
     from app.db import session_factory
     from app.providers.base import RetryableProviderError
     from app.services.feedback_analysis import (

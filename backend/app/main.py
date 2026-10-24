@@ -1017,7 +1017,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.post(
         "/api/v1/ideas/{idea_id}/versions/{version}/prototypes",
         response_model=PrototypeBuildResponse,
-        status_code=202,
+        status_code=201,
         tags=["Prototype builder"],
     )
     def generate_prototype_source(
@@ -1040,7 +1040,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ).first()
         if record is None:
             raise HTTPException(status_code=404, detail="Idea version not found.")
-        idea, idea_version = record
+        _idea, idea_version = record
         requirement_run = get_requirement_run_for_version(
             session,
             idea_version.id,
@@ -1059,25 +1059,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if existing is not None:
             response.status_code = 200
             return PrototypeBuildResponse.model_validate(existing)
-        # Enqueue prototype generation as a Celery task
-        from app.workers.celery_app import celery_app
-
-        task = celery_app.send_task(
-            "veridica.prototype.generate",
-            args=[requirement_run.id, idea_version.id, str(settings.prototype_source_storage_dir)],
+        build = create_prototype_source(
+            session,
+            idea_version,
+            requirement_run,
+            str(settings.prototype_source_storage_dir),
         )
-        # Return 202 Accepted with task ID for status polling
-        response.status_code = 202
-        headers = {"X-Task-Id": task.id}
-        return PrototypeBuildResponse(
-            id=task.id,
-            requirement_analysis_run_id=requirement_run.id,
-            idea_version_id=idea_version.id,
-            status="queued",
-            task_id=task.id,
-            created_at=datetime.now(UTC),
-            **{k: v for k, v in PrototypeBuildResponse.model_fields.items() if k not in ["id", "requirement_analysis_run_id", "idea_version_id", "status", "task_id", "created_at"]},
-        )
+        return PrototypeBuildResponse.model_validate(build)
 
     @application.get(
         "/api/v1/ideas/{idea_id}/versions/{version}/prototypes",

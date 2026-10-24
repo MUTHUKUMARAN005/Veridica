@@ -1,4 +1,4 @@
-"""Gemini Developer API provider backed by the official google-genai SDK.
+"""Gemini Developer API provider backed by httpx REST calls.
 
 This provider is backend-only. Credentials and model identifiers are read from
 application settings (environment / .env) and are never leaked to the frontend.
@@ -10,67 +10,23 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
-from google import genai
-from google.genai.types import EmbedContentConfig, GenerateContentConfig
 
 from app.config import Settings
 from app.providers.base import (
     ProviderConfigurationError,
-    ProviderError,
     ProviderResponseError,
-    RetryableProviderError,
+    classify_http_error,
+    classify_transport_error,
 )
 
+_GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 _DEFAULT_TEMPERATURE = 0.1
 _DEFAULT_MAX_OUTPUT_TOKENS = 4096
-
-_RETRYABLE_MESSAGE_FRAGMENTS = (
-    "quota",
-    "rate limit",
-    "try again",
-    "unavailable",
-    "overloaded",
-    "internal error",
-    "deadline exceeded",
-)
-
-
-def _classify_error(error: Exception, provider: str) -> ProviderError:
-    if isinstance(error, ProviderError):
-        return error
-    if isinstance(error, httpx.TransportError):
-        return RetryableProviderError(f"Could not connect to {provider}.")
-    if isinstance(error, httpx.HTTPStatusError):
-        response = error.response
-        if response is not None:
-            if response.status_code in {408, 425, 429} or response.status_code >= 500:
-                return RetryableProviderError(
-                    f"{provider} is temporarily unavailable (HTTP {response.status_code})."
-                )
-            return ProviderResponseError(
-                f"{provider} rejected the request (HTTP {response.status_code})."
-            )
-    message = str(error).casefold()
-    if any(fragment in message for fragment in _RETRYABLE_MESSAGE_FRAGMENTS):
-        return RetryableProviderError(f"{provider} transient failure: {error}")
-    return ProviderResponseError(f"{provider} request failed: {error}")
-
-
-def _usage_metadata(response: Any) -> dict[str, int] | None:
-    usage = getattr(response, "usage_metadata", None)
-    if usage is None:
-        return None
-    return {
-        "prompt_tokens": int(getattr(usage, "prompt_token_count", 0) or 0),
-        "candidates_tokens": int(getattr(usage, "candidates_token_count", 0) or 0),
-        "total_tokens": int(getattr(usage, "total_token_count", 0) or 0),
-    }
 
 
 @dataclass
 class GeminiProvider:
     settings: Settings
-    _client: Any = field(init=False, repr=False)
     last_token_usage: dict[str, int] | None = field(
         init=False, repr=False, default=None
     )
@@ -84,11 +40,6 @@ class GeminiProvider:
             raise ProviderConfigurationError(
                 "GEMINI_MODEL is required when AI_PROVIDER=gemini."
             )
-        object.__setattr__(
-            self,
-            "_client",
-            genai.Client(api_key=self.settings.gemini_api_key),
-        )
 
     @property
     def model_id(self) -> str:
@@ -100,27 +51,63 @@ class GeminiProvider:
 
     def chat(self, prompt: str, system: str) -> str:
         """Return a raw JSON text response for the given prompt/system pair."""
-        config = GenerateContentConfig(
-            system_instruction=system,
-            response_mime_type="application/json",
-            temperature=_DEFAULT_TEMPERATURE,
-            max_output_tokens=_DEFAULT_MAX_OUTPUT_TOKENS,
-        )
+        url = f"{_GEMINI_API_BASE}/{self.model_id}:generateContent"
         try:
-            response = self._client.models.generate_content(
-                model=self.model_id,
-                contents=prompt,
-                config=config,
+            response = httpx.post(
+                url,
+                headers={
+                    "x-goog-api-key": self.settings.gemini_api_key or "",
+                    "content-type": "application/json",
+                },
+                json={
+                    "system_instruction": {"parts": [{"text": system}]},
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "temperature": _DEFAULT_TEMPERATURE,
+                        "maxOutputTokens": _DEFAULT_MAX_OUTPUT_TOKENS,
+                    },
+                },
+                timeout=self.settings.ai_provider_timeout_seconds,
             )
-        except Exception as error:  # noqa: BLE001 - translate all SDK errors
-            raise _classify_error(error, "Gemini Developer API") from error
-        self.last_token_usage = _usage_metadata(response)
+        except httpx.TransportError as error:
+            raise classify_transport_error(error, "Gemini Developer API") from error
+        classify_http_error(response, "Gemini Developer API")
         try:
-            text = response.text
-        except (ValueError, AttributeError) as error:
+            payload: Any = response.json()
+        except ValueError as error:
+            raise ProviderResponseError(
+                "Gemini Developer API returned an invalid JSON response."
+            ) from error
+        if not isinstance(payload, dict):
+            raise ProviderResponseError(
+                "Gemini Developer API returned an unexpected payload shape."
+            )
+        usage = payload.get("usageMetadata")
+        if isinstance(usage, dict):
+            self.last_token_usage = {
+                "prompt_tokens": int(usage.get("promptTokenCount", 0) or 0),
+                "candidates_tokens": int(usage.get("candidatesTokenCount", 0) or 0),
+                "total_tokens": int(usage.get("totalTokenCount", 0) or 0),
+            }
+        else:
+            self.last_token_usage = None
+        candidates = payload.get("candidates")
+        if not isinstance(candidates, list) or not candidates:
             raise ProviderResponseError(
                 "Gemini Developer API returned no usable model response."
-            ) from error
+            )
+        content = (
+            candidates[0].get("content")
+            if isinstance(candidates[0], dict)
+            else None
+        )
+        parts = content.get("parts") if isinstance(content, dict) else None
+        text = (
+            parts[0].get("text")
+            if isinstance(parts, list) and parts and isinstance(parts[0], dict)
+            else None
+        )
         if not isinstance(text, str) or not text.strip():
             raise ProviderResponseError("Gemini Developer API returned empty output.")
         return text
@@ -129,19 +116,41 @@ class GeminiProvider:
         """Return one embedding vector for the given text."""
         if not text or not text.strip():
             raise ProviderResponseError("Cannot embed empty text.")
+        url = f"{_GEMINI_API_BASE}/{self.embedding_model_id}:embedContent"
         try:
-            response = self._client.models.embed_content(
-                model=self.embedding_model_id,
-                contents=text,
-                config=EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+            response = httpx.post(
+                url,
+                headers={
+                    "x-goog-api-key": self.settings.gemini_api_key or "",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": f"models/{self.embedding_model_id}",
+                    "content": {"parts": [{"text": text}]},
+                    "taskType": "RETRIEVAL_DOCUMENT",
+                    "outputDimensionality": self.settings.gemini_embedding_dimensions,
+                },
+                timeout=self.settings.ai_provider_timeout_seconds,
             )
-        except Exception as error:  # noqa: BLE001 - translate all SDK errors
-            raise _classify_error(error, "Gemini Developer API embeddings") from error
-        embeddings = getattr(response, "embeddings", None) or []
-        if not embeddings or not getattr(embeddings[0], "values", None):
-            raise ProviderResponseError("Gemini Developer API returned no embedding values.")
+        except httpx.TransportError as error:
+            raise classify_transport_error(
+                error, "Gemini Developer API embeddings"
+            ) from error
+        classify_http_error(response, "Gemini Developer API embeddings")
         try:
-            return [float(value) for value in embeddings[0].values]
+            payload: Any = response.json()
+        except ValueError as error:
+            raise ProviderResponseError(
+                "Gemini Developer API returned an invalid embedding response."
+            ) from error
+        embedding = payload.get("embedding") if isinstance(payload, dict) else None
+        values = embedding.get("values") if isinstance(embedding, dict) else None
+        if not isinstance(values, list) or not values:
+            raise ProviderResponseError(
+                "Gemini Developer API returned no embedding values."
+            )
+        try:
+            return [float(value) for value in values]
         except (TypeError, ValueError) as error:
             raise ProviderResponseError(
                 "Gemini Developer API returned non-numeric embedding values."

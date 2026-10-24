@@ -135,4 +135,34 @@ nav a small { margin-left: auto; background: #edf2ef; padding: 1px 6px; border-r
 .analysis-evidence-list { display: grid; gap: 10px; list-style: none; padding: 0; }
 .analysis-evidence-list li { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 5px; padding: 16px; }
 .analysis-evidence-list p, .analysis-evidence-list small { color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.error-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; margin-bottom: 20px; border: 1px solid #e5c4bd; border-left: 3px solid #b5574d; border-radius: 6px; background: #fdf5f3; color: #8c3d35; font-size: 12px; }
+.error-banner > div { display: flex; align-items: center; gap: 10px; }
+.loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 54px 24px; margin: 18px 0; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--muted); text-align: center; }
+.loading-state strong { font-size: 13px; color: var(--dark); }
+.loading-state p { font-size: 12px; color: var(--muted); }
+.loading-spinner { width: 22px; height: 22px; border: 2px solid #dce5df; border-top-color: var(--green); border-radius: 50%; animation: spin .75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.next-action-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 24px; margin-bottom: 26px; border: 1px solid #cfe2d6; border-radius: 7px; background: linear-gradient(120deg, #eff7f2, #f7fbf8); }
+.next-action-card h3 { font-size: 15px; color: var(--dark); margin: 4px 0 6px; }
+.next-action-card p { font-size: 12px; color: #6c8577; line-height: 1.7; max-width: 620px; }
+.summary-meta-list { display: grid; gap: 12px; margin: 14px 0 0; }
+.summary-meta-list > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.summary-meta-list dt { color: var(--muted); }
+.summary-meta-list dd { margin: 0; font-weight: 600; color: var(--dark); text-align: right; }
+.requirements-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 18px 20px; margin-bottom: 22px; border: 1px solid var(--line); border-radius: 6px; background: white; }
+.requirement-status-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.requirements-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+.requirement-card { border: 1px solid var(--line); border-radius: 6px; background: white; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.requirement-card.full-span { grid-column: 1 / -1; }
+.requirement-card h3 { font-size: 14px; color: var(--dark); }
+.requirement-fact-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.requirement-fact-list li { padding: 12px 14px; border: 1px solid #edf2ee; border-radius: 5px; background: #fbfdfb; display: grid; gap: 6px; }
+.requirement-fact-list li p { font-size: 12px; color: #536b5d; line-height: 1.65; }
+.requirement-fact-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.requirement-fact-header small { font-size: 10px; color: var(--muted); }
+.journey-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.journey-card { border: 1px solid #edf2ee; border-radius: 5px; background: #fbfdfb; padding: 16px; display: grid; gap: 10px; }
+.journey-card ol { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; color: #536b5d; line-height: 1.6; }
+.version-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (max-width: 800px) { .requirements-grid, .journey-cards { grid-template-columns: 1fr; } .next-action-card { flex-direction: column; align-items: flex-start; } }
 @media (max-width: 600px) { .api-analysis-toolbar { align-items: flex-start; flex-direction: column; }.api-analysis-toolbar .button { width: 100%; }.api-analysis-selectors { width: 100%; }.api-analysis-selectors select { min-width: 0; max-width: 100%; } }
